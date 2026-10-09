@@ -154,14 +154,9 @@ jobs:
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
-                 - name: Apply FengChi Patch
-    run: |  
-      cd kernel_workspace
-      git apply --check ../other_patch/fengchi.patch
-      git apply ../other_patch/fengchi.patch
-      scripts/config --enable CONFIG_OPLUS_SCHED
-      scripts/config --enable CONFIG_OPLUS_GAME_OPT
-
+      - name: Apply FengChi Patch
+        run: bash other_patch/apply_fengchi.sh
+           
        
 
 
