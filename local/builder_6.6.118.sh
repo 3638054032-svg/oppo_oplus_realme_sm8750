@@ -163,11 +163,7 @@ if [[ "$KSU_BRANCH" == [kK] && "$APPLY_SUSFS" == [yY] ]]; then
   patch -p1 -F 3 < 10_enable_susfs_for_ksu.patch || true
 fi
 cd "$WORKDIR/kernel_workspace"
-# ======== OKI模式：打风驰SCX Fusion补丁 ========
-cd "$WORKDIR/kernel_workspace/common"
-wget https://github.com/cctv18/oppo_oplus_realme_sm8750/raw/refs/heads/main/other_patch/fusion_scx.patch
-patch -p1 -F 3 < fusion_scx.patch || true
-cd "$WORKDIR/kernel_workspace"
+
 
 # ===== 应用 LZ4 & ZSTD 补丁 =====
 if [[ "$APPLY_LZ4" == "y" || "$APPLY_LZ4" == "Y" ]]; then
@@ -206,7 +202,7 @@ echo "CONFIG_FUSION=y" >> "$DEFCONFIG_FILE"
 
 # ===== 添加 defconfig 配置项 =====
 echo ">>> 添加 defconfig 配置项..."
-DEFCONFIG_FILE=./common/arch/arm64/configs/gki_defconfig
+
 
 # 写入通用 SUSFS/KSU 配置
 echo "CONFIG_KSU=y" >> "$DEFCONFIG_FILE"
