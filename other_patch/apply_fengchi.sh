@@ -1,13 +1,22 @@
 #!/bin/bash
-cd kernel_workspace
-if [ -f ../other_patch/fengchi.patch ]; then
-git apply --check ../other_patch/fengchi.patch
-git apply ../other_patch/fengchi.patch
-scripts/config --enable CONFIG_OPLUS_SCHED
-scripts/config --enable CONFIG_OPLUS_GAME_OPT
-echo "✅ 风驰补丁应用完成"
+# 当前位置：仓库根目录 $GITHUB_WORKSPACE
+# 内核源码目录就是 github 工作目录，环境变量 $GITHUB_WORKSPACE 不是源码目录！
+# 进入内核源码目录
+cd ..
+
+PATCH_FILE="$GITHUB_WORKSPACE/other_patch/fengchi.patch"
+
+echo "=== 开始应用风驰补丁 ==="
+if [ -f "$PATCH_FILE" ]; then
+    echo "找到补丁文件：$PATCH_FILE"
+    git apply --check "$PATCH_FILE"
+    git apply "$PATCH_FILE"
+    scripts/config --enable CONFIG_OPLUS_SCHED
+    scripts/config --enable CONFIG_OPLUS_GAME_OPT
+    echo "✅ 风驰补丁应用完成"
 else
-echo "⚠️ 补丁文件不存在，跳过打补丁"
+    echo "⚠️ 补丁文件不存在，跳过打补丁"
 fi
+
 
 
