@@ -155,7 +155,8 @@ jobs:
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
       - name: Apply FengChi Patch
-        run: bash other_patch/apply_fengchi.sh
+        run: cd $GITHUB_WORKSPACE && bash other_patch/apply_fengchi.sh
+
            
        
 
