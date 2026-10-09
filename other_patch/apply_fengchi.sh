@@ -1,8 +1,7 @@
 #!/bin/bash
 # 当前位置：仓库根目录 $GITHUB_WORKSPACE
-# 内核源码目录就是 github 工作目录，环境变量 $GITHUB_WORKSPACE 不是源码目录！
-# 进入内核源码目录
-cd ..
+# 进入内核源码目录 kernel_workspace
+cd kernel_workspace
 
 PATCH_FILE="$GITHUB_WORKSPACE/other_patch/fengchi.patch"
 
@@ -17,6 +16,3 @@ if [ -f "$PATCH_FILE" ]; then
 else
     echo "⚠️ 补丁文件不存在，跳过打补丁"
 fi
-
-
-
