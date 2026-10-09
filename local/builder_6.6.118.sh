@@ -163,6 +163,11 @@ if [[ "$KSU_BRANCH" == [kK] && "$APPLY_SUSFS" == [yY] ]]; then
   patch -p1 -F 3 < 10_enable_susfs_for_ksu.patch || true
 fi
 cd "$WORKDIR/kernel_workspace"
+# ======== OKI模式：打风驰SCX Fusion补丁 ========
+cd "$WORKDIR/kernel_workspace/common"
+wget https://github.com/cctv18/oppo_oplus_realme_sm8750/raw/refs/heads/main/other_patch/fusion_scx.patch
+patch -p1 -F 3 < fusion_scx.patch || true
+cd "$WORKDIR/kernel_workspace"
 
 # ===== 应用 LZ4 & ZSTD 补丁 =====
 if [[ "$APPLY_LZ4" == "y" || "$APPLY_LZ4" == "Y" ]]; then
@@ -197,6 +202,7 @@ else
   echo ">>> 跳过 LZ4KD 补丁..."
   cd "$WORKDIR/kernel_workspace"
 fi
+echo "CONFIG_FUSION=y" >> "$DEFCONFIG_FILE"
 
 # ===== 添加 defconfig 配置项 =====
 echo ">>> 添加 defconfig 配置项..."
@@ -371,6 +377,28 @@ fi
 # ===== 禁用 defconfig 检查 =====
 echo ">>> 禁用 defconfig 检查..."
 sed -i 's/check_defconfig//' ./common/build.config.gki
+# 内核配置：先删除旧配置，防止重复冲突
+sed -i '/CONFIG_HZ_250/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+sed -i '/CONFIG_HZ_1000/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_HZ_1000=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_RCU_LAZY/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_RCU_LAZY=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_NO_HZ_FULL/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_NO_HZ_FULL=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_CFS_BANDWIDTH/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_CFS_BANDWIDTH=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_QCOM_KGSL_BW_PRELOAD/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_QCOM_KGSL_BW_PRELOAD=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+
+sed -i '/CONFIG_PREEMPT/d' ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
+echo "CONFIG_PREEMPT_VOLUNTARY=y" >> ${KERNEL_DIR}/arch/arm64/configs/sm8750_defconfig
 
 # ===== 编译内核 =====
 echo ">>> 开始编译内核..."
