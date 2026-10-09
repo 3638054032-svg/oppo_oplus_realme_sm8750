@@ -9,10 +9,12 @@ env:
   CCACHE_KEY: ccache-ecsv4-6.6.118
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       ksu_type:
-        description: 'KernelSU分支(BakaSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认BakaSU)'
+        description: 'KernelSU分支(Baka'
         required: true
         type: choice
         default: 'bakasu'
@@ -22,6 +24,9 @@ on:
           - 'ksunext'
           - 'ksu'
           - 'none'
+      susfs_enable:
+        description: '是否开启susfs(用于'
+
       susfs_enable:
         description: '是否开启susfs(用于增强隐藏环境挂载功能; 可能轻微增加耗电，上游更新导致不稳定时或不需要可关闭)'
         required: true
