@@ -106,6 +106,9 @@ jobs:
       actions: write
       contents: read
     steps:
+      - name: Checkout repo files
+       uses: actions/checkout@v4
+    
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang18工具链
         run: |
           rm -rf kernel_workspace
@@ -154,7 +157,7 @@ jobs:
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
-      - name: Apply FengChi Patch
+      - name: apply_fengchi.sh
         run: cd $GITHUB_WORKSPACE && bash other_patch/apply_fengchi.sh
 
            
