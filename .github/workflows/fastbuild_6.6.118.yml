@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       ksu_type:
-        description: 'KernelSU分支(Baka'
+        description: 'KernelSU分支(BakaSU)'
         required: true
         type: choice
         default: 'bakasu'
@@ -265,7 +265,7 @@ jobs:
         run: |
           # 进入内核工作目录
           cd kernel_workspace
-          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
+          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" || "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
             echo "正在配置BakaSU（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
             curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s main
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
@@ -275,7 +275,7 @@ jobs:
             # 存储版本号到 GitHub 环境变量
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
             echo "正在配置KernelSU Next..."
             curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
             cd KernelSU-Next
@@ -290,7 +290,7 @@ jobs:
             cd ../common/drivers/kernelsu
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/apk_sign.patch
             patch -p2 -N -F 3 < apk_sign.patch || true
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
             echo "正在配置原版 KernelSU (tiann/KernelSU)..."
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/refs/heads/main/kernel/setup.sh" | bash -s main
             cd ./KernelSU
@@ -306,7 +306,7 @@ jobs:
         if: inputs.susfs_enable
         run: |
           cd kernel_workspace
-          if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
+          if [[ "${{ github.event.inputs.ksu_type }}" != "none" ]]; then
             echo "正在添加susfs补丁..."
             git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
@@ -320,7 +320,7 @@ jobs:
           else
             echo "已选择无内置KernelSU模式，跳过susfs配置..."
           fi
-          if [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+          if [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
             echo "正在为原版 KernelSU (tiann/KernelSU)添加补丁..."
             cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
             cd ./KernelSU
@@ -401,7 +401,7 @@ jobs:
           # 应用 CVE_2026_43499 修复补丁
           cd common
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
-          patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
+          patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch || true
           
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
@@ -441,9 +441,9 @@ jobs:
 
       - name: 添加 BBR 等一系列拥塞控制算法
         run: |
+          cd kernel_workspace
           if [[ "${{ github.event.inputs.bbr_enable }}" != "false" ]]; then
             echo "正在添加BBR等拥塞控制算法..."
-            cd kernel_workspace
             #开启TCP拥塞控制算法控制器（必需）
             echo "CONFIG_TCP_CONG_ADVANCED=y" >> ./common/arch/arm64/configs/gki_defconfig
             ################################################################################################################################
@@ -526,12 +526,13 @@ jobs:
               echo "CONFIG_DRM_LINDROID_EVDI=y" >> ./arch/arm64/configs/gki_defconfig
             fi
           fi
-            - name: 打入LLCC BWMON补丁
-          run: |
+
+      - name: 打入LLCC BWMON补丁
+        run: |
           echo ">>> 应用LLCC BWMON补丁"
           cd kernel_workspace/common
           wget -qO llcc-bwmon.patch "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/llcc-bwmon.patch"
-          patch -p1 < llcc-bwmon.patch
+          patch -p1 < llcc-bwmon.patch || true
 
 
       - name: 启用ADIOS IO调度器
@@ -559,35 +560,40 @@ jobs:
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
+      - name: 调整内核基础配置（HZ/抢占/RCU等）
+        run: |
+          echo ">>> 开始修改内核基础配置"
+          cd kernel_workspace
           # ===== 禁用 defconfig 检查 =====
-          echo ">>> 禁用 defconfig 检查..."
           sed -i 's/check_defconfig//' ./common/build.config.gki
-          # 内核配置：先删除旧配置，防止重复冲突
-          sed -i '/CONFIG_HZ_250/d' ./common/arch/arm64/configs/sm8750_defconfig
-          sed -i '/CONFIG_HZ_1000/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_HZ_1000=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
+          # 内核节拍：先删除旧配置，防止重复冲突
+          sed -i '/CONFIG_HZ_250/d' $DEFCONFIG
+          sed -i '/CONFIG_HZ_1000/d' $DEFCONFIG
+          sed -i '/CONFIG_HZ=/d' $DEFCONFIG
+          echo "CONFIG_HZ_1000=y" >> $DEFCONFIG
+          echo "CONFIG_HZ=1000" >> $DEFCONFIG
 
-          sed -i '/CONFIG_RCU_LAZY/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_RCU_LAZY=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_RCU_LAZY/d' $DEFCONFIG
+          echo "CONFIG_RCU_LAZY=y" >> $DEFCONFIG
 
-          sed -i '/CONFIG_NO_HZ_FULL/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_NO_HZ_FULL=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_NO_HZ_FULL/d' $DEFCONFIG
+          echo "CONFIG_NO_HZ_FULL=y" >> $DEFCONFIG
 
-          sed -i '/CONFIG_CFS_BANDWIDTH/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_CFS_BANDWIDTH=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_CFS_BANDWIDTH/d' $DEFCONFIG
+          echo "CONFIG_CFS_BANDWIDTH=y" >> $DEFCONFIG
 
-          sed -i '/CONFIG_QCOM_KGSL_BW_PRELOAD/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_QCOM_KGSL_BW_PRELOAD=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_QCOM_KGSL_BW_PRELOAD/d' $DEFCONFIG
+          echo "CONFIG_QCOM_KGSL_BW_PRELOAD=y" >> $DEFCONFIG
 
-          sed -i '/CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH/d' $DEFCONFIG
+          echo "CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH=y" >> $DEFCONFIG
 
-          sed -i '/CONFIG_PREEMPT/d' ./common/arch/arm64/configs/sm8750_defconfig
-          echo "CONFIG_PREEMPT_VOLUNTARY=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_PREEMPT/d' $DEFCONFIG
+          echo "CONFIG_PREEMPT=y" >> $DEFCONFIG
 
-          # 增加校验行，编译日志直接查看HZ是否写入成功
           echo "==== HZ配置检查 ===="
-          grep HZ ./common/arch/arm64/configs/sm8750_defconfig
+          grep HZ $DEFCONFIG
 
       - name: 添加制作名称
         run: |
@@ -598,7 +604,7 @@ jobs:
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${{ github.event.inputs.kernel_suffix }}\"|" "$f"
             done
-            sudo sed -i 's/-4k/-${{ github.event.inputs.KERNEL_SUFFIX }}/g' ./common/arch/arm64/configs/gki_defconfig
+            sudo sed -i 's/-4k/-${{ github.event.inputs.kernel_suffix }}/g' ./common/arch/arm64/configs/gki_defconfig
           else
             echo "当前内核版本后缀：${{ env.KERNEL_NAME }}"
             for f in ./common/scripts/setlocalversion; do
@@ -757,13 +763,13 @@ jobs:
             echo "未找到内核镜像文件，构建可能出错"
             exit 1
           fi
-          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
+          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
             KSU_TYPENAME="BakaSU"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
             KSU_TYPENAME="KSUNext"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
             KSU_TYPENAME="KSU"
           else
             KSU_TYPENAME="none"
@@ -771,7 +777,7 @@ jobs:
           if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
             wget https://raw.githubusercontent.com/$GITHUB_REPOSITORY/refs/heads/$GITHUB_REF_NAME/zram.zip
           fi
-          if [[ ${{ github.event.inputs.kpm_enable }} == 'true' ]]; then
+          if [[ "${{ github.event.inputs.kpm_enable }}" == 'true' ]]; then
             wget https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip
           fi
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
@@ -856,13 +862,13 @@ jobs:
           echo "TIME_FORM=$TIME_FORM" >> $GITHUB_ENV
           TAG_HEAD="OPPO-OPlus-Realme-build"
           echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
-          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
+          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU Ultra"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
             KSU_TYPENAME="BakaSU"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
             KSU_TYPENAME="KernelSU Next"
-          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
             KSU_TYPENAME="KSU"
           else
             KSU_TYPENAME="无内置KSU"
