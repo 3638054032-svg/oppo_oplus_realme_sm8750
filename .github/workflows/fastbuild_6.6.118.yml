@@ -727,7 +727,25 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+
+          # b_16.0.0 的 gki_defconfig 默认开启 KASAN/UBSAN_TRAP/PANIC_ON_OOPS 等调试项，
+          # 开机早期一旦检测到问题就 panic（卡第一屏循环+震动），发布内核必须关闭
+          ./scripts/config --file out/.config \
+            --disable KASAN \
+            --disable UBSAN \
+            --disable UBSAN_TRAP \
+            --disable PANIC_ON_OOPS \
+            --disable DEBUG_MEMORY_INIT \
+            --disable PAGE_OWNER \
+            --disable KFENCE \
+            --disable WERROR \
+            --disable KUNIT \
+            --disable KUNIT_TEST \
+            --disable KUNIT_EXAMPLE_TEST
+          # 让 Kconfig 依赖重新收敛，清理 KASAN/UBSAN 子项残留
+          make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error olddefconfig
+
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
 
           # 强制校验内核镜像是否真正生成（防止编译静默失败却显示成功）
