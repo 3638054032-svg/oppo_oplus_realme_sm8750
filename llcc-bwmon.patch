@@ -12,6 +12,19 @@ index abc1234..def5678 100644
 
  struct bwmon_data {
  	void __iomem *base;
+@@ -180,9 +183,9 @@ static void bwmon_init_sample(struct bwmon_data *data)
+ {
+ 	u32 window;
+ 	// 替换原有设备树读取，改用全局变量
+-	data->sample_min = data->window_min;
+-	data->sample_mid = data->window_mid;
+-	data->sample_max = data->window_max;
++	data->sample_min = llcc_sample_min;
++	data->sample_mid = llcc_sample_mid;
++	data->sample_max = llcc_sample_max;
+ }
+
+ static void bwmon_update_sample(struct bwmon_data *data)
 @@ -420,6 +423,42 @@ static const struct attribute_group bwmon_attr_group = {
  	.attrs = bwmon_attrs,
  };
@@ -27,6 +40,8 @@ index abc1234..def5678 100644
 +	u32 val;
 +	if (kstrtou32(buf, 10, &val))
 +		return -EINVAL;
++	// 限制下限，防止设置过低内核卡死
++	if(val < 100) val = 100;
 +	llcc_sample_min = val;
 +	return count;
 +}
@@ -43,6 +58,7 @@ index abc1234..def5678 100644
 +	u32 val;
 +	if (kstrtou32(buf, 10, &val))
 +		return -EINVAL;
++	if(val < 200) val = 200;
 +	llcc_sample_mid = val;
 +	return count;
 +}
@@ -59,6 +75,7 @@ index abc1234..def5678 100644
 +	u32 val;
 +	if (kstrtou32(buf, 10, &val))
 +		return -EINVAL;
++	if(val < 500) val = 500;
 +	llcc_sample_max = val;
 +	return count;
 +}
