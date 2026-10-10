@@ -760,11 +760,15 @@ jobs:
           git clone https://github.com/cctv18/AnyKernel3 --depth=1
           rm -rf ./AnyKernel3/.git
           cd AnyKernel3
+          if [ -f ../common/out/arch/arm64/boot/Image.gz ]; then
+          gunzip -c ../common/out/arch/arm64/boot/Image.gz > ./Image
+          elif [ -f ../common/out/arch/arm64/boot/Image ]; then
           cp ../common/out/arch/arm64/boot/Image ./Image
-          if [[ ! -f ./Image ]]; then
-            echo "未找到内核镜像文件，构建可能出错"
-            exit 1
-          fi
+          else
+          echo "找不到内核镜像，列出目录内容："
+          ls ../common/out/arch/arm64/boot/
+          exit 1
+           fi
           if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU"
           elif [[ "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
