@@ -1,0 +1,83 @@
+diff --git a/drivers/interconnect/qcom/icc-bwmon.c b/drivers/interconnect/qcom/icc-bwmon.c
+index abc1234..def5678 100644
+--- a/drivers/interconnect/qcom/icc-bwmon.c
++++ b/drivers/interconnect/qcom/icc-bwmon.c
+@@ -28,6 +28,9 @@
+ #include <linux/slab.h>
+ #include <linux/types.h>
+
++static u32 llcc_sample_min = 250;
++static u32 llcc_sample_mid = 500;
++static u32 llcc_sample_max = 1000;
+
+ struct bwmon_data {
+ 	void __iomem *base;
+@@ -420,6 +423,42 @@ static const struct attribute_group bwmon_attr_group = {
+ 	.attrs = bwmon_attrs,
+ };
+
++static ssize_t sample_min_show(struct device *dev,
++		struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%u\n", llcc_sample_min);
++}
++static ssize_t sample_min_store(struct device *dev,
++		struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 val;
++	if (kstrtou32(buf, 10, &val))
++		return -EINVAL;
++	llcc_sample_min = val;
++	return count;
++}
++static DEVICE_ATTR_RW(sample_min);
++
++static ssize_t sample_mid_show(struct device *dev,
++		struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%u\n", llcc_sample_mid);
++}
++static ssize_t sample_mid_store(struct device *dev,
++		struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 val;
++	if (kstrtou32(buf, 10, &val))
++		return -EINVAL;
++	llcc_sample_mid = val;
++	return count;
++}
++static DEVICE_ATTR_RW(sample_mid);
++
++static ssize_t sample_max_show(struct device *dev,
++		struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%u\n", llcc_sample_max);
++}
++static ssize_t sample_max_store(struct device *dev,
++		struct device_attribute *attr, const char *buf, size_t count)
++{
++	u32 val;
++	if (kstrtou32(buf, 10, &val))
++		return -EINVAL;
++	llcc_sample_max = val;
++	return count;
++}
++static DEVICE_ATTR_RW(sample_max);
++
+ static int bwmon_probe(struct platform_device *pdev)
+ {
+ 	struct bwmon_data *data;
+@@ -455,6 +494,18 @@ static int bwmon_probe(struct platform_device *pdev)
+ 		goto err_clk;
+ 	}
+
++	device_create_file(&pdev->dev, &dev_attr_sample_min);
++	device_create_file(&pdev->dev, &dev_attr_sample_mid);
++	device_create_file(&pdev->dev, &dev_attr_sample_max);
++
++	dev_info(&pdev->dev, "LLCC BWMON sample window nodes loaded, default min:%u mid:%u max:%u\n",
++		llcc_sample_min, llcc_sample_mid, llcc_sample_max);
++
+ 	return 0;
+ err_clk:
+ 	clk_disable_unprepare(data->clk);
