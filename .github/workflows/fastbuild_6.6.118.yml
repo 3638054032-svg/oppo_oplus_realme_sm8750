@@ -9,12 +9,10 @@ env:
   CCACHE_KEY: ccache-ecsv4-6.6.118
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       ksu_type:
-        description: 'KernelSU分支(BakaSU)'
+        description: 'KernelSU分支(BakaSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认BakaSU)'
         required: true
         type: choice
         default: 'bakasu'
@@ -107,12 +105,7 @@ jobs:
     permissions:
       actions: write
       contents: read
-
     steps:
-
-      - name: Checkout repo files
-        uses: actions/checkout@v4
-    
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang18工具链
         run: |
           rm -rf kernel_workspace
@@ -161,14 +154,6 @@ jobs:
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
-      - name: apply_fengchi.sh
-        run: cd $GITHUB_WORKSPACE && bash other_patch/apply_fengchi.sh
-
-           
-       
-
-
-         
 
       - name: 配置ccache目录
         run: |
@@ -265,7 +250,7 @@ jobs:
         run: |
           # 进入内核工作目录
           cd kernel_workspace
-          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" || "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
+          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             echo "正在配置BakaSU（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
             curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s main
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
@@ -275,7 +260,7 @@ jobs:
             # 存储版本号到 GitHub 环境变量
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
             echo "正在配置KernelSU Next..."
             curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
             cd KernelSU-Next
@@ -290,7 +275,7 @@ jobs:
             cd ../common/drivers/kernelsu
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/apk_sign.patch
             patch -p2 -N -F 3 < apk_sign.patch || true
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
             echo "正在配置原版 KernelSU (tiann/KernelSU)..."
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/refs/heads/main/kernel/setup.sh" | bash -s main
             cd ./KernelSU
@@ -306,7 +291,7 @@ jobs:
         if: inputs.susfs_enable
         run: |
           cd kernel_workspace
-          if [[ "${{ github.event.inputs.ksu_type }}" != "none" ]]; then
+          if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
             echo "正在添加susfs补丁..."
             git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
@@ -320,7 +305,7 @@ jobs:
           else
             echo "已选择无内置KernelSU模式，跳过susfs配置..."
           fi
-          if [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
+          if [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
             echo "正在为原版 KernelSU (tiann/KernelSU)添加补丁..."
             cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
             cd ./KernelSU
@@ -401,7 +386,7 @@ jobs:
           # 应用 CVE_2026_43499 修复补丁
           cd common
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
-          patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch || true
+          patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
           
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
@@ -441,9 +426,9 @@ jobs:
 
       - name: 添加 BBR 等一系列拥塞控制算法
         run: |
-          cd kernel_workspace
           if [[ "${{ github.event.inputs.bbr_enable }}" != "false" ]]; then
             echo "正在添加BBR等拥塞控制算法..."
+            cd kernel_workspace
             #开启TCP拥塞控制算法控制器（必需）
             echo "CONFIG_TCP_CONG_ADVANCED=y" >> ./common/arch/arm64/configs/gki_defconfig
             ################################################################################################################################
@@ -477,8 +462,8 @@ jobs:
             else
               echo "CONFIG_DEFAULT_TCP_CONG=cubic" >> ./common/arch/arm64/configs/gki_defconfig
             fi
-          fi 
-          echo "CONFIG_HMBIRD_SYSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+
       - name: 启用 Droidspaces 容器支持
         run: |
           if [[ "${{ github.event.inputs.droidspaces_enable }}" != "false" ]]; then
@@ -527,14 +512,6 @@ jobs:
             fi
           fi
 
-      - name: 打入LLCC BWMON补丁
-        run: |
-          echo ">>> 应用LLCC BWMON补丁"
-          cd kernel_workspace/common
-          wget -qO llcc-bwmon.patch "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/llcc-bwmon.patch"
-          patch -p1 < llcc-bwmon.patch || true
-
-
       - name: 启用ADIOS IO调度器
         if: inputs.adios_enable
         run: |
@@ -560,41 +537,6 @@ jobs:
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
-      - name: 调整内核基础配置（HZ/抢占/RCU等）
-        run: |
-          echo ">>> 开始修改内核基础配置"
-          cd kernel_workspace
-          # ===== 禁用 defconfig 检查 =====
-          sed -i 's/check_defconfig//' ./common/build.config.gki
-          DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
-          # 内核节拍：先删除旧配置，防止重复冲突
-          sed -i '/CONFIG_HZ_250/d' $DEFCONFIG
-          sed -i '/CONFIG_HZ_1000/d' $DEFCONFIG
-          sed -i '/CONFIG_HZ=/d' $DEFCONFIG
-          echo "CONFIG_HZ_1000=y" >> $DEFCONFIG
-          echo "CONFIG_HZ=1000" >> $DEFCONFIG
-
-          sed -i '/CONFIG_RCU_LAZY/d' $DEFCONFIG
-          echo "CONFIG_RCU_LAZY=y" >> $DEFCONFIG
-
-          sed -i '/CONFIG_NO_HZ_FULL/d' $DEFCONFIG
-          echo "CONFIG_NO_HZ_FULL=y" >> $DEFCONFIG
-
-          sed -i '/CONFIG_CFS_BANDWIDTH/d' $DEFCONFIG
-          echo "CONFIG_CFS_BANDWIDTH=y" >> $DEFCONFIG
-
-          sed -i '/CONFIG_QCOM_KGSL_BW_PRELOAD/d' $DEFCONFIG
-          echo "CONFIG_QCOM_KGSL_BW_PRELOAD=y" >> $DEFCONFIG
-
-          sed -i '/CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH/d' $DEFCONFIG
-          echo "CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH=y" >> $DEFCONFIG
-
-          sed -i '/CONFIG_PREEMPT/d' $DEFCONFIG
-          echo "CONFIG_PREEMPT=y" >> $DEFCONFIG
-
-          echo "==== HZ配置检查 ===="
-          grep HZ $DEFCONFIG
-
       - name: 添加制作名称
         run: |
           cd kernel_workspace
@@ -604,7 +546,7 @@ jobs:
             for f in ./common/scripts/setlocalversion; do
               sed -i "\$s|echo \"\\\$res\"|echo \"-${{ github.event.inputs.kernel_suffix }}\"|" "$f"
             done
-            sudo sed -i 's/-4k/-${{ github.event.inputs.kernel_suffix }}/g' ./common/arch/arm64/configs/gki_defconfig
+            sudo sed -i 's/-4k/-${{ github.event.inputs.KERNEL_SUFFIX }}/g' ./common/arch/arm64/configs/gki_defconfig
           else
             echo "当前内核版本后缀：${{ env.KERNEL_NAME }}"
             for f in ./common/scripts/setlocalversion; do
@@ -614,45 +556,30 @@ jobs:
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
           echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
-          
-      - name: 应用风驰补丁与优化配置
+
+      - name: 设置节拍HZ1000（保持默认空闲无时钟，不启用NO_HZ_FULL）
         run: |
-         echo "开始应用风驰补丁..."
-         cd kernel_workspace/common
-         wget -qO fengchi.patch "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/other_patch/fengchi.patch"
-         patch -p1 --no-backup-if-mismatch < fengchi.patch || true
+          cd kernel_workspace
+          DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
+          # 只改节拍HZ，不碰NO_HZ，动态时钟保持源码默认 NO_HZ_IDLE
+          sed -i '/CONFIG_HZ_250/d' $DEFCONFIG
+          sed -i '/CONFIG_HZ_1000/d' $DEFCONFIG
+          sed -i '/CONFIG_HZ=/d' $DEFCONFIG
+          echo "CONFIG_HZ_1000=y" >> $DEFCONFIG
+          echo "CONFIG_HZ=1000" >> $DEFCONFIG
+          echo "==== HZ配置检查（应只显示1000）===="
+          grep -nE "CONFIG_HZ" $DEFCONFIG
+          # 安全自检：绝不能启用 NO_HZ_FULL
+          if grep -q "CONFIG_NO_HZ_FULL=y" $DEFCONFIG; then echo "ERROR: 不应启用NO_HZ_FULL"; exit 1; fi
+          echo "已确认：HZ=1000，动态时钟保持 NO_HZ_IDLE"
 
-         wget -qO apply_fengchi.sh "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/other_patch/apply_fengchi.sh"
-         chmod +x apply_fengchi.sh
-         ./apply_fengchi.sh || true
-         # 将 OPLUS 调度/游戏优化正确写入 gki_defconfig（scripts/config 写的源码树 .config 在 O=out 构建时不生效）
-         echo "CONFIG_OPLUS_SCHED=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_OPLUS_GAME_OPT=y" >> ./arch/arm64/configs/gki_defconfig
+      - name: 打入LLCC BWMON补丁（暴露LLCC带宽监控节点）
+        run: |
+          cd kernel_workspace/common
+          echo "==== 打入LLCC BWMON补丁 ===="
+          patch -p1 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/llcc-bwmon.patch" || echo "WARN: LLCC补丁有hunk未应用，请核对补丁与源码版本"
+          echo "LLCC补丁处理完成"
 
-         echo "CONFIG_MEMCG=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_MEMCG_SWAP=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_ZRAM=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_ZRAM_DEF_COMP_ZSTD=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_ZSMALLOC=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_PSI=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_PAGEALLOC_COMPRESS=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_CLEANCACHE=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_FRONTSWAP=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_CGROUP_SCHED=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_SCHED_TUNE=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_SCHED_AUTOGROUP=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_HZ_1000=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_HZ=1000" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_PREEMPT=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_PREEMPT_RT=n" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_RCU_BOOST=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_RCU_KTHREAD_PRIO=0" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_HMBIRD=y" >> ./arch/arm64/configs/gki_defconfig
-         echo "CONFIG_SCHED_EXT=y" >> ./arch/arm64/configs/gki_defconfig
-
-
-    
       - name: 构建内核
         run: |
           WORKDIR="$(pwd)"
@@ -678,9 +605,6 @@ jobs:
           echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
           
           cd kernel_workspace/common
-          # 清理源码树中被 scripts/config 误建的配置残留（修复 source tree is not clean）
-          rm -f .config .config.old
-          rm -rf include/config arch/arm64/include/generated
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
           chmod 777 ./*.so
@@ -727,34 +651,9 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
-
-          # b_16.0.0 的 gki_defconfig 默认开启 KASAN/UBSAN_TRAP/PANIC_ON_OOPS 等调试项，
-          # 开机早期一旦检测到问题就 panic（卡第一屏循环+震动），发布内核必须关闭
-          ./scripts/config --file out/.config \
-            --disable KASAN \
-            --disable UBSAN \
-            --disable UBSAN_TRAP \
-            --disable PANIC_ON_OOPS \
-            --disable DEBUG_MEMORY_INIT \
-            --disable PAGE_OWNER \
-            --disable KFENCE \
-            --disable WERROR \
-            --disable KUNIT \
-            --disable KUNIT_TEST \
-            --disable KUNIT_EXAMPLE_TEST
-          # 让 Kconfig 依赖重新收敛，清理 KASAN/UBSAN 子项残留
-          make LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error olddefconfig
-
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
-
-          # 强制校验内核镜像是否真正生成（防止编译静默失败却显示成功）
-          if [ ! -f out/arch/arm64/boot/Image ] && [ ! -f out/arch/arm64/boot/Image.gz ]; then
-            echo "ERROR: 内核编译未生成 Image/Image.gz，请查看上方 make 输出定位错误"
-            exit 1
-          fi
-          echo "已确认内核镜像生成成功"
-
+          
           # 编译后时间劫持二次校验
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
           echo "--- 编译后环境文件时间戳: ---"
@@ -791,24 +690,18 @@ jobs:
           git clone https://github.com/cctv18/AnyKernel3 --depth=1
           rm -rf ./AnyKernel3/.git
           cd AnyKernel3
-
-          if [ -f ../common/out/arch/arm64/boot/Image.gz ]; then
-            gunzip -c ../common/out/arch/arm64/boot/Image.gz > ./Image
-          elif [ -f ../common/out/arch/arm64/boot/Image ]; then
-            cp ../common/out/arch/arm64/boot/Image ./Image
-          else
-            echo "找不到内核镜像，列出目录内容："
-            ls ../common/out/arch/arm64/boot/
+          cp ../common/out/arch/arm64/boot/Image ./Image
+          if [[ ! -f ./Image ]]; then
+            echo "未找到内核镜像文件，构建可能出错"
             exit 1
           fi
-
-          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
+          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             KSU_TYPENAME="BakaSU"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
             KSU_TYPENAME="KSUNext"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
             KSU_TYPENAME="KSU"
           else
             KSU_TYPENAME="none"
@@ -816,7 +709,7 @@ jobs:
           if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
             wget https://raw.githubusercontent.com/$GITHUB_REPOSITORY/refs/heads/$GITHUB_REF_NAME/zram.zip
           fi
-          if [[ "${{ github.event.inputs.kpm_enable }}" == 'true' ]]; then
+          if [[ ${{ github.event.inputs.kpm_enable }} == 'true' ]]; then
             wget https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip
           fi
           if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
@@ -866,7 +759,7 @@ jobs:
       - name: 上传 ZIP 工件
         uses: actions/upload-artifact@v7
         with:
-          path: ${{ github.workspace }}/kernel_workspace/*.zip
+          path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
           archive: false
 
   release:
@@ -876,13 +769,14 @@ jobs:
       contents: write
       packages: write
       actions: read
+      
     steps:
       - name: 下载 ZIP 工件
         uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.ak3name }}
           path: ./release_zips
-          skip-decompression: true
+          skip-decompress: true
 
       - name: 设置环境变量
         run: |
@@ -901,13 +795,13 @@ jobs:
           echo "TIME_FORM=$TIME_FORM" >> $GITHUB_ENV
           TAG_HEAD="OPPO-OPlus-Realme-build"
           echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
-          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
+          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
             KSU_TYPENAME="SukiSU Ultra"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "bakasu" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             KSU_TYPENAME="BakaSU"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksunext" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
             KSU_TYPENAME="KernelSU Next"
-          elif [[ "${{ github.event.inputs.ksu_type }}" == "ksu" ]]; then
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
             KSU_TYPENAME="KSU"
           else
             KSU_TYPENAME="无内置KSU"
