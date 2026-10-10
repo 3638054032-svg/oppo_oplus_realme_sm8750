@@ -477,8 +477,8 @@ jobs:
             else
               echo "CONFIG_DEFAULT_TCP_CONG=cubic" >> ./common/arch/arm64/configs/gki_defconfig
             fi
-          fi
-
+          fi 
+          echo "CONFIG_HMBIRD_SYSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
       - name: 启用 Droidspaces 容器支持
         run: |
           if [[ "${{ github.event.inputs.droidspaces_enable }}" != "false" ]]; then
