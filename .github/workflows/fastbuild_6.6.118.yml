@@ -625,6 +625,9 @@ jobs:
          wget -qO apply_fengchi.sh "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/other_patch/apply_fengchi.sh"
          chmod +x apply_fengchi.sh
          ./apply_fengchi.sh || true
+         # 将 OPLUS 调度/游戏优化正确写入 gki_defconfig（scripts/config 写的源码树 .config 在 O=out 构建时不生效）
+         echo "CONFIG_OPLUS_SCHED=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_OPLUS_GAME_OPT=y" >> ./arch/arm64/configs/gki_defconfig
 
          echo "CONFIG_MEMCG=y" >> ./arch/arm64/configs/gki_defconfig
          echo "CONFIG_MEMCG_SWAP=y" >> ./arch/arm64/configs/gki_defconfig
@@ -675,6 +678,9 @@ jobs:
           echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
           
           cd kernel_workspace/common
+          # 清理源码树中被 scripts/config 误建的配置残留（修复 source tree is not clean）
+          rm -f .config .config.old
+          rm -rf include/config arch/arm64/include/generated
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
           chmod 777 ./*.so
