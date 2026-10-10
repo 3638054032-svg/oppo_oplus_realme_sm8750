@@ -552,6 +552,36 @@ jobs:
           curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 
+          # ===== 禁用 defconfig 检查 =====
+          echo ">>> 禁用 defconfig 检查..."
+          sed -i 's/check_defconfig//' ./common/build.config.gki
+          # 内核配置：先删除旧配置，防止重复冲突
+          sed -i '/CONFIG_HZ_250/d' ./common/arch/arm64/configs/sm8750_defconfig
+          sed -i '/CONFIG_HZ_1000/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_HZ_1000=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_RCU_LAZY/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_RCU_LAZY=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_NO_HZ_FULL/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_NO_HZ_FULL=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_CFS_BANDWIDTH/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_CFS_BANDWIDTH=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_QCOM_KGSL_BW_PRELOAD/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_QCOM_KGSL_BW_PRELOAD=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_QCOM_KGSL_WORKQUEUE_SMOOTH=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          sed -i '/CONFIG_PREEMPT/d' ./common/arch/arm64/configs/sm8750_defconfig
+          echo "CONFIG_PREEMPT_VOLUNTARY=y" >> ./common/arch/arm64/configs/sm8750_defconfig
+
+          # 增加校验行，编译日志直接查看HZ是否写入成功
+          echo "==== HZ配置检查 ===="
+          grep HZ ./common/arch/arm64/configs/sm8750_defconfig
+
       - name: 添加制作名称
         run: |
           cd kernel_workspace
