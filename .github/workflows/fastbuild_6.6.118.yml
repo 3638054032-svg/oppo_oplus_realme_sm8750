@@ -571,7 +571,40 @@ jobs:
           fi
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
           echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
-           
+          
+      - name: 应用风驰补丁与优化配置
+        run: |
+         echo "开始应用风驰补丁..."
+         cd kernel_workspace/common
+         wget -qO fengchi.patch "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/other_patch/fengchi.patch"
+         patch -p1 < fengchi.patch
+         wget -qO apply_fengchi.sh "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/other_patch/apply_fengchi.sh"
+         chmod +x apply_fengchi.sh
+         ./apply_fengchi.sh
+         echo "CONFIG_MEMCG=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_MEMCG_SWAP=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_ZRAM=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_ZRAM_DEF_COMP_ZSTD=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_ZSMALLOC=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_PSI=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_PAGEALLOC_COMPRESS=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_CLEANCACHE=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_FRONTSWAP=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_CGROUP_SCHED=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_SCHED_TUNE=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_SCHED_AUTOGROUP=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_WQ_POWER_EFFICIENT_DEFAULT=n" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_HZ_1000=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_HZ=1000" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_PREEMPT=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_PREEMPT_RT=n" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_RCU_BOOST=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_RCU_KTHREAD_PRIO=0" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_HMBIRD=y" >> ./arch/arm64/configs/gki_defconfig
+         echo "CONFIG_SCHED_EXT=y" >> ./arch/arm64/configs/gki_defconfig
+
+
+    
       - name: 构建内核
         run: |
           WORKDIR="$(pwd)"
