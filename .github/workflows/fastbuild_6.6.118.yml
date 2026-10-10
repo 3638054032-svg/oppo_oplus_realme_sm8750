@@ -526,6 +526,13 @@ jobs:
               echo "CONFIG_DRM_LINDROID_EVDI=y" >> ./arch/arm64/configs/gki_defconfig
             fi
           fi
+            - name: 打入LLCC BWMON补丁
+          run: |
+          echo ">>> 应用LLCC BWMON补丁"
+          cd kernel_workspace/common
+          wget -qO llcc-bwmon.patch "https://raw.githubusercontent.com/3638054032-svg/oppo_oplus_realme_sm8750/refs/heads/main/llcc-bwmon.patch"
+          patch -p1 < llcc-bwmon.patch
+
 
       - name: 启用ADIOS IO调度器
         if: inputs.adios_enable
