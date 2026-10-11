@@ -411,16 +411,16 @@ jobs:
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
           patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
           run: |
-           # 清理旧编译残留，保证源码干净
-            cd $GITHUB_WORKSPACE/kernel_workspace/kernel_platform/msm-kernel
-            make ARCH=arm64 mrproper
-           # 开启SCX sched-ext框架全套配置
-            scripts/config --enable CONFIG_SCHED_CLASS_EXT
-            scripts/config --enable CONFIG_BPF
-            scripts/config --enable CONFIG_BPF_SYSCALL
-            scripts/config --enable CONFIG_BPF_JIT
-            scripts/config --enable CONFIG_DEBUG_INFO_BTF
-
+          # 只删除编译输出out文件夹，不破坏源码文档
+           cd $GITHUB_WORKSPACE/kernel_workspace/kernel_platform/msm-kernel
+          rm -rf out
+          # 开启SCX sched-ext框架全套配置
+           scripts/config --enable CONFIG_SCHED_CLASS_EXT
+           scripts/config --enable CONFIG_BPF
+           scripts/config --enable CONFIG_BPF_SYSCALL
+           scripts/config --enable CONFIG_BPF_JIT
+           scripts/config --enable CONFIG_DEBUG_INFO_BTF
+           
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
