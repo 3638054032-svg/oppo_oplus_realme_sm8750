@@ -621,8 +621,9 @@ jobs:
           $CFG --enable QCOM_CRM
           $CFG --enable QCOM_CRM_DEBUG
           $CFG --enable QCOM_CPU_PHYMAPPING
-          $CFG --enable QCOM_MINIDUMP
-          $CFG --enable MINIDUMP
+          $CFG --enable QCOM_CPUSS_PHYSID
+          $CFG --disable QCOM_MINIDUMP
+          $CFG --disable MINIDUMP
           $CFG --enable QCOM_DUMP
           $CFG --disable SCHED_WALT
           $CFG --disable QTI_QCOM_LOGBUF
