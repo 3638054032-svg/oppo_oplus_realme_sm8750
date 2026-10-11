@@ -1,4 +1,4 @@
-name: 6.6.119 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
+name: 6.6.118 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
 
 env:
   TZ: Asia/Shanghai
@@ -576,7 +576,7 @@ jobs:
       # =====================================================================
       # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
       # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
-      # 这次补全了 SOCINFO 的前置依赖 QCOM_SMEM，并放宽了硬性校验。
+      # 本次修复：关闭 WALT，避免引入 OPLUS vendor hook 符号缺失问题。
       # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
@@ -595,7 +595,7 @@ jobs:
           echo "==== 3) LLCC DCVS 依赖链内置 =y ===="
           CFG="./scripts/config --file out/.config"
           $CFG --enable ARM_SCMI_PROTOCOL --enable ARM_SCMI_TRANSPORT_SMC
-          $CFG --enable QCOM_CPUCP --enable QCOM_CPUCP_FAST
+          $CFG --enable QCOM_CPUCP --disable QCOM_CPUCP_FAST
           $CFG --enable QTI_SCMI_VENDOR_PROTOCOL --enable QTI_SCMI_PMU_PROTOCOL
           $CFG --enable QTI_QCOM_SCMI_CLIENT
           $CFG --enable QCOM_PMU_LIB
@@ -609,7 +609,7 @@ jobs:
           # 双保险：强制节拍 1000（gki 默认 250），不启用 NO_HZ_FULL
           $CFG --enable HZ_1000 --disable HZ_250 --disable HZ_300 --disable HZ_100
           $CFG --enable NO_HZ_IDLE --disable NO_HZ_FULL
-          # ====== 补全底层依赖（含 SOCINFO 的前置依赖 QCOM_SMEM）======
+          # ====== 补全底层依赖，并关闭 WALT 避免 OPLUS hook 符号缺失 ======
           $CFG --enable QCOM_SMEM
           $CFG --enable QCOM_SOCINFO
           $CFG --enable QCOM_LLCC
@@ -619,9 +619,10 @@ jobs:
           $CFG --enable IPC_LOGGING
           $CFG --enable QCOM_CRM
           $CFG --enable QCOM_CRM_DEBUG
-          $CFG --enable SCHED_WALT
-          $CFG --enable QTI_QCOM_LOGBUF
-          # =======================================================
+          $CFG --enable QCOM_CPU_PHYMAP
+          $CFG --disable SCHED_WALT
+          $CFG --disable QTI_QCOM_LOGBUF
+          # ==================================================================
           make O=out ARCH=arm64 olddefconfig
           echo "==== 4) 硬性校验：只保留 LLCC 核心符号，其余交给编译自动判断 ===="
           for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON \
