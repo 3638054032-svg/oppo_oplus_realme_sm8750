@@ -624,21 +624,38 @@ jobs:
       # 上有 5 处调度器核心 hunk 冲突（include/linux/sched.h 与 kernel/sched/core.c），不能直接打。
       # 需要使用“适配完整树”的补丁 other_patch/fengchi_fulltree.patch（rebase 后另行提供）。
       # 请先用默认 false 出 LLCC 验证版；确认开机+节点正常后，再用适配补丁开本开关做实验版。
-      - name: （实验·默认关）打入适配完整树的风驰 HMBIRD 补丁
+      - name: 风驰补丁冲突调试（自动提取冲突文件）
         if: inputs.fengchi_enable
         run: |
           cd kernel_workspace/kernel_platform/msm-kernel
-          P="$GITHUB_WORKSPACE/other_patch/fengchi_fulltree.patch"
+          P="$GITHUB_WORKSPACE/other_patch/fengchi.patch"
           if [ ! -f "$P" ]; then
-            echo "!! 已开启风驰但未找到适配完整树的 other_patch/fengchi_fulltree.patch"
-            echo "!! 原始 fengchi.patch 不能用于完整树，终止以免产出坏包"
+            echo "!! 未找到 other_patch/fengchi.patch，请确认文件存在"
             exit 1
           fi
-          git apply --check "$P" || { echo "!! 风驰适配补丁仍有冲突"; exit 1; }
-          git apply "$P"
-          ./scripts/config --file out/.config --enable CONFIG_HMBIRD_SCHED --enable CONFIG_OPLUS_SCHED --enable CONFIG_OPLUS_GAME_OPT
-          make O=out ARCH=arm64 LLVM=1 olddefconfig
-          echo "风驰(适配完整树)已打入"
+          
+          echo ">>> 正在强制应用风驰补丁，冲突处会生成 .rej 文件..."
+          # 强制应用，忽略报错，把打不上的地方存成 .rej 文件
+          git apply --reject "$P" || true
+          
+          echo ">>> 正在收集冲突文件和源码..."
+          mkdir -p conflict_debug
+          # 1. 收集所有冲突文件
+          find . -name "*.rej" -exec cp --parents {} conflict_debug/ \;
+          
+          # 2. 收集涉及冲突的核心源码文件
+          cp --parents include/linux/sched.h conflict_debug/ 2>/dev/null || true
+          cp --parents kernel/sched/core.c conflict_debug/ 2>/dev/null || true
+          cp --parents kernel/sched/sched.h conflict_debug/ 2>/dev/null || true
+          cp --parents kernel/time/tick-sched.c conflict_debug/ 2>/dev/null || true
+          cp --parents arch/arm64/configs/gki_defconfig conflict_debug/ 2>/dev/null || true
+          
+          echo ">>> 打包冲突文件..."
+          # 回到工作区根目录打包，方便下载
+          cd $GITHUB_WORKSPACE/kernel_workspace
+          zip -r fengchi_debug.zip conflict_debug
+          
+          echo ">>> 打包完成，请在 Actions 页面下载 Artifacts 里的 fengchi-debug.zip"
 
       - name: 构建内核
         run: |
@@ -812,6 +829,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
+          archive: false
+
+      - name: 上传风驰冲突调试包
+        if: always() && inputs.fengchi_enable
+        uses: actions/upload-artifact@v7
+        with:
+          name: fengchi-debug
+          path: ${{ github.workspace }}/kernel_workspace/fengchi_debug.zip
           archive: false
 
   release:
