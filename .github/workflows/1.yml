@@ -621,7 +621,7 @@ jobs:
           $CFG --enable QCOM_CRM
           $CFG --enable QCOM_CRM_DEBUG
           $CFG --enable QCOM_CPU_PHYMAPPING
-          $CFG --enable QCOM_CPUSS_PHYSID
+          
           
           $CFG --disable QCOM_MINIDUMP
           $CFG --disable MINIDUMP
@@ -631,6 +631,7 @@ jobs:
           $CFG --disable DEBUG_INFO_BTF
           # =======================================================
           make O=out ARCH=arm64 olddefconfig
+          $CFG --enable QCOM_CPUSS_PHYSID
           echo "==== 4) 硬性校验：只保留 LLCC 核心符号，其余交给编译自动判断 ===="
           for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON \
                    CONFIG_INTERCONNECT_QCOM_SUN CONFIG_HZ_1000; do
