@@ -633,10 +633,12 @@ jobs:
           make O=out ARCH=arm64 LLVM=1 olddefconfig
           echo "风驰(适配完整树)已打入"
 
-          - name: 清理旧配置与编译产物
+          - name: 源码树清理 mrproper
           run: |
           cd $GITHUB_WORKSPACE/kernel_workspace/kernel_platform/msm-kernel
-          rm -rf out .config   
+          make mrproper
+
+             
 
       - name: 构建内核
         run: |
