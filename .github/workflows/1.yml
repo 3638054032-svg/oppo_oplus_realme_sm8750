@@ -1,4 +1,4 @@
-name: 6.6.119 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
+name: 6.6.118 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
 
 env:
   TZ: Asia/Shanghai
@@ -7,6 +7,7 @@ env:
   SUB_VERSION: '118'
   KERNEL_NAME: 'android15-8-g29d86c5fc9dd-abogki428889875-4k-llcc'
   CCACHE_KEY: ccache-ecsv4-6.6.118-full
+  # 官方完整内核 + 配套 overlay/设备树 仓库（含 qcom dcvs 全套驱动）
   FULL_REPO: 'OnePlusOSS/android_kernel_oneplus_sm8750'
   MOD_REPO:  'OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8750'
   TREE_BRANCH: 'oneplus/sm8750_b_16.0.0_oneplus_13'
@@ -26,12 +27,12 @@ on:
           - 'ksu'
           - 'none'
       susfs_enable:
-        description: '是否开启susfs'
+        description: '是否开启susfs(用于增强隐藏环境挂载功能; 可能轻微增加耗电，上游更新导致不稳定时或不需要可关闭)'
         required: true
         type: boolean
         default: 'true'
       kpm_enable:
-        description: '是否开启kpm'
+        description: '是否开启kpm(使用KpatchNext独立实现kpm(支持任意KSU/面具环境); 不需要可保持默认关闭)'
         required: true
         type: boolean
         default: 'false'
@@ -41,12 +42,12 @@ on:
         type: boolean
         default: 'true'
       lz4kd_enable:
-        description: '是否安装 LZ4KD 补丁'
+        description: '是否安装 LZ4KD 补丁(若已开启lz4+zstd补丁则可不开启)'
         required: true
         type: boolean
         default: 'false'
       bbr_enable:
-        description: "是否启用bbr算法"
+        description: "是否启用bbr算法(优化上行数据,对手机日用无太大意义甚至可能负优化;false关闭,true仅加入算法,default启用算法并设为默认)"
         required: true
         type: choice
         default: 'false'
@@ -55,7 +56,7 @@ on:
           - 'true'
           - 'default'
       droidspaces_enable:
-        description: '是否启用Droidspaces容器支持'
+        description: '是否启用Droidspaces容器支持(轻量化的完整Linux容器支持;false关闭,standard开启容器+ntsync支持,extend开启更多测试支持项)'
         required: true
         type: choice
         default: 'false'
@@ -64,42 +65,42 @@ on:
           - 'standard'
           - 'extend'
       better_net:
-        description: '是否开启网络功能拓展配置'
+        description: '是否开启网络功能拓展配置(用于为ipset及需要iptables等高级网络功能内核支持的程序提供支持)'
         required: true
         type: boolean
         default: 'false'
       adios_enable:
-        description: '是否启用ADIOS IO调度器支持'
+        description: '是否启用ADIOS IO调度器支持(提升IO读写性能)'
         required: true
         type: boolean
         default: 'true'
       rekernel_enable:
-        description: '是否启用Re-Kernel支持'
+        description: '是否启用Re-Kernel支持(与Freezer/NoActive等软件配合, 提升应用冻结能力)'
         required: true
         type: boolean
         default: 'false'
       baseband_guard:
-        description: '是否开启内核级基带保护'
+        description: '是否开启内核级基带保护(阻止一切对非用户分区的写入，有效防止格机)'
         required: true
         type: boolean
         default: 'true'
       ccache_update:
-        description: '更新ccache缓存'
+        description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存，在更改编译配置、源码或需要刷新缓存时开启)'
         required: true
         type: boolean
         default: 'false'
       ccache_debug:
-        description: '是否上传 Ccache调试日志'
+        description: '是否上传 Ccache调试日志(用于调试, 无需要不必开启)'
         required: true
         type: boolean
         default: 'false'
       kernel_suffix:
-        description: '内核后缀'
+        description: '内核后缀(留空默认,开头别加连字符,勿加空格等影响指令运行的保留字符)'
         required: false
         type: string
         default: ''
       fengchi_enable:
-        description: '是否打入风驰HMBIRD补丁(需使用适配完整树的补丁)'
+        description: '是否打入风驰HMBIRD补丁(默认false:先做LLCC验证版;完整树与cctv18的风驰集成不同,需使用适配完整树的补丁 other_patch/fengchi_fulltree.patch,未适配前请勿开启)'
         required: true
         type: boolean
         default: 'false'
@@ -114,6 +115,15 @@ jobs:
       actions: write
       contents: read
     steps:
+      # =====================================================================
+      # 关键改动①：源码由 cctv18 的 common 精简树，换成“官方完整 msm-kernel +
+      # 配套 overlay/设备树”，按官方 manifest 布局拼装（这样才有 qcom dcvs 驱动）。
+      # 工具链(clang18 r510928 + build-tools)与你旧 yml 完全一致。
+      # 布局（均在 kernel_workspace/ 下）：
+      #   kernel_platform/msm-kernel/                 完整内核
+      #   kernel_platform/qcom|build|oplus/...        modules 仓库的 kernel_platform/
+      #   vendor/                                     modules 仓库顶层 vendor/
+      # =====================================================================
       - name: 安装环境依赖+拼装官方完整内核树及llvm-Clang18工具链
         run: |
           rm -rf kernel_workspace
@@ -178,11 +188,11 @@ jobs:
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
 
-          # 新增：在生成配置前彻底清理源码树，防止 out-of-tree 构建报错
-          echo "正在清理源码树，防止 Makefile 报 source tree is not clean..."
+          # 清理构建目录，防止 out-of-tree 构建报错
+          echo "正在清理构建目录..."
           cd kernel_platform/msm-kernel
           rm -rf out
-          make ARCH=arm64 mrproper
+          # 注意：官方完整树阉割了 Documentation 目录，执行 mrproper 会报错，此处只需删 out 目录即可
           cd ../..
 
       - name: 配置ccache目录
@@ -264,6 +274,7 @@ jobs:
             ccache -sv
           fi
 
+      # 内核源码根目录（后续所有补丁/配置都打到这里）
       - name: 添加KernelSU
         id: ksu_version
         run: |
@@ -400,6 +411,7 @@ jobs:
             echo "CONFIG_CRYPTO_842=y" >> $D
           fi
           echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $D
+          # 经典 make 构建不经过 build.config.gki，无需 check_defconfig；存在则去掉该检查
           sed -i 's/check_defconfig//' $K/build.config.gki 2>/dev/null || true
           echo "CONFIG_HEADERS_INSTALL=n" >> $D
           cd $K
@@ -560,6 +572,11 @@ jobs:
           if grep -q "CONFIG_NO_HZ_FULL=y" $D; then echo "ERROR: 不应启用NO_HZ_FULL"; exit 1; fi
           echo "已确认：HZ=1000，动态时钟保持 NO_HZ_IDLE"
 
+      # =====================================================================
+      # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
+      # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
+      # 这是 /sys/devices/system/cpu/bus_dcvs/LLCC 节点出现的核心。
+      # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
           set -e
@@ -588,6 +605,7 @@ jobs:
           $CFG --enable INTERCONNECT --enable INTERCONNECT_QCOM --enable INTERCONNECT_QCOM_RPMH
           $CFG --enable INTERCONNECT_QCOM_SUN --enable INTERCONNECT_QCOM_BCM_VOTER
           $CFG --enable INTERCONNECT_QCOM_QOS --enable INTERCONNECT_QCOM_KERA
+          # 双保险：强制节拍 1000（gki 默认 250），不启用 NO_HZ_FULL
           $CFG --enable HZ_1000 --disable HZ_250 --disable HZ_300 --disable HZ_100
           $CFG --enable NO_HZ_IDLE --disable NO_HZ_FULL
           make O=out ARCH=arm64 olddefconfig
@@ -600,6 +618,11 @@ jobs:
           echo "全部关键符号已内置："
           grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=' out/.config
 
+      # 风驰(SCX/HMBIRD)：默认关闭！
+      # 你仓库里的 other_patch/fengchi.patch 是给 cctv18 common 树用的，实测在官方完整树
+      # 上有 5 处调度器核心 hunk 冲突（include/linux/sched.h 与 kernel/sched/core.c），不能直接打。
+      # 需要使用“适配完整树”的补丁 other_patch/fengchi_fulltree.patch（rebase 后另行提供）。
+      # 请先用默认 false 出 LLCC 验证版；确认开机+节点正常后，再用适配补丁开本开关做实验版。
       - name: （实验·默认关）打入适配完整树的风驰 HMBIRD 补丁
         if: inputs.fengchi_enable
         run: |
@@ -677,6 +700,7 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          # 配置已在上一步生成（gki+vendor片段+LLCC内置+HZ1000），这里直接编译 Image
           test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
           make O=out ARCH=arm64 LLVM=1 olddefconfig
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
