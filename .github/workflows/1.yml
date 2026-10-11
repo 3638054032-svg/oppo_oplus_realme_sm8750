@@ -576,7 +576,7 @@ jobs:
       # =====================================================================
       # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
       # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
-      # 这次补全了所有缺失的底层依赖（socinfo/llcc_pmu/icc_debug/ipc_log/crm/walt）。
+      # 这次把 SOCINFO 改成了正确的 QCOM_SOCINFO。
       # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
@@ -610,6 +610,7 @@ jobs:
           $CFG --enable HZ_1000 --disable HZ_250 --disable HZ_300 --disable HZ_100
           $CFG --enable NO_HZ_IDLE --disable NO_HZ_FULL
           # ====== 新增：补全之前缺失的底层依赖符号 ======
+          $CFG --enable QCOM_SOCINFO
           $CFG --enable SOCINFO
           $CFG --enable QCOM_LLCC_PMU
           $CFG --enable INTERCONNECT_QCOM_DEBUG
@@ -624,11 +625,11 @@ jobs:
           for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON CONFIG_QCOM_PMU_LIB \
                    CONFIG_QTI_SCMI_VENDOR_PROTOCOL CONFIG_QTI_SCMI_PMU_PROTOCOL CONFIG_QCOM_CPUCP \
                    CONFIG_INTERCONNECT_QCOM_SUN CONFIG_QCOM_RPMH CONFIG_HZ_1000 \
-                   CONFIG_SOCINFO CONFIG_QCOM_LLCC_PMU CONFIG_QCOM_CRM CONFIG_SCHED_WALT; do
+                   CONFIG_QCOM_SOCINFO CONFIG_QCOM_LLCC_PMU CONFIG_QCOM_CRM CONFIG_SCHED_WALT; do
             grep -q "^$s=y" out/.config || { echo "!! 缺少内置符号 $s，终止构建"; exit 1; }
           done
           echo "全部关键符号已内置："
-          grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=|CONFIG_SOCINFO=|CONFIG_QCOM_LLCC_PMU=|CONFIG_QCOM_CRM=|CONFIG_SCHED_WALT=' out/.config
+          grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=|CONFIG_QCOM_SOCINFO=|CONFIG_QCOM_LLCC_PMU=|CONFIG_QCOM_CRM=|CONFIG_SCHED_WALT=' out/.config
 
       # 风驰(SCX/HMBIRD)：默认关闭！
       # 你仓库里的 other_patch/fengchi.patch 是给 cctv18 common 树用的，实测在官方完整树
