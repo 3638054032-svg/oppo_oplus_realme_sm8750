@@ -677,309 +677,310 @@ jobs:
           zip -r fengchi_debug.zip conflict_debug
           
           echo ">>> 打包完成，请在 Actions 页面下载 Artifacts 里的 fengchi-debug.zip"
-              - name: 构建内核
-      run: |
-        WORKDIR="$(pwd)"
-        export PATH="/usr/lib/ccache:$PATH"
-        export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
-        export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
-        CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
-        CLANG_VERSION="$($CLANG_DIR/clang --version | head -n 1)"
-        LLD_VERSION="$($CLANG_DIR/ld.lld --version | head -n 1)"
-        echo "编译器信息:"
-        echo "Clang版本: $CLANG_VERSION"
-        echo "LLD版本: $LLD_VERSION"
-        pahole_version=$(pahole --version 2>/dev/null | head -n1); [ -z "$pahole_version" ] && echo "pahole版本：未安装" || echo "pahole版本：$pahole_version"
 
-        export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
-        export CCACHE_COMPILERCHECK="none"
-        export CCACHE_BASEDIR="${{ github.workspace }}"
-        export CCACHE_NOHASHDIR="true"
-        export CCACHE_NOHARDLINK="true"
-        export CCACHE_DIR="${{ env.CCACHE_DIR }}"
-        export CCACHE_MAXSIZE="3G"
-        export CCACHE_IS_KERNEL_COMPILING="true"
-        echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
+      - name: 构建内核
+        run: |
+          WORKDIR="$(pwd)"
+          export PATH="/usr/lib/ccache:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
+          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
+          CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
+          CLANG_VERSION="$($CLANG_DIR/clang --version | head -n 1)"
+          LLD_VERSION="$($CLANG_DIR/ld.lld --version | head -n 1)"
+          echo "编译器信息:"
+          echo "Clang版本: $CLANG_VERSION"
+          echo "LLD版本: $LLD_VERSION"
+          pahole_version=$(pahole --version 2>/dev/null | head -n1); [ -z "$pahole_version" ] && echo "pahole版本：未安装" || echo "pahole版本：$pahole_version"
 
-        cd kernel_workspace/kernel_platform/msm-kernel
+          export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
+          export CCACHE_COMPILERCHECK="none"
+          export CCACHE_BASEDIR="${{ github.workspace }}"
+          export CCACHE_NOHASHDIR="true"
+          export CCACHE_NOHARDLINK="true"
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+          export CCACHE_MAXSIZE="3G"
+          export CCACHE_IS_KERNEL_COMPILING="true"
+          echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
 
-        # ====== 修复 walt.h 在 SCHED_WALT 关闭时的编译错误（用 -Wno-return-type 忽略）======
-        echo "WALT 已禁用，编译时忽略 walt.h 中 return 类型警告..."
-        # 直接把 return -EINVAL; 改成 return 0;（兼容 void/non-void）
-        sed -i 's/return -EINVAL;/return 0;/' include/linux/sched/walt.h
-        # ==========================================================================
+          cd kernel_workspace/kernel_platform/msm-kernel
 
-        # ====== 修复 walt_partial_pause_cpus / walt_partial_resume_cpus 重复符号 ======
-        # 关键：兼容 static/extern 前缀 + int/void 返回类型 + 行首空格/制表符，
-        # 全形式统一强制改为 static __always_inline，从根本上消除全局重复符号。
-        echo "修复 walt.h 中重复符号..."
-        WALT_FILE="include/linux/sched/walt.h"
-        if [ -f "$WALT_FILE" ]; then
-          sed -i -E 's/^([[:space:]]*)(static[[:space:]]+|extern[[:space:]]+)?(void|int)([[:space:]]+)(walt_partial_pause_cpus|walt_partial_resume_cpus)/\1static __always_inline \3\4\5/g' "$WALT_FILE"
-          echo "walt.h 修复完成，相关行如下："
-          grep -n "walt_partial_pause_cpus\|walt_partial_resume_cpus" "$WALT_FILE" || true
-        fi
-        # ==========================================================================
+          # ====== 修复 walt.h 在 SCHED_WALT 关闭时的编译错误（用 -Wno-return-type 忽略）======
+          echo "WALT 已禁用，编译时忽略 walt.h 中 return 类型警告..."
+          # 直接把 return -EINVAL; 改成 return 0;（兼容 void/non-void）
+          sed -i 's/return -EINVAL;/return 0;/' include/linux/sched/walt.h
+          # ==========================================================================
 
-        wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
-        wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
-        chmod 777 ./*.so
-        export FAKESTAT="2025-05-25 12:00:00"
-        export FAKETIME="@2025-05-25 13:00:00"
-        echo "FAKESTAT=$FAKESTAT" >> $GITHUB_ENV
-        echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
-        SO_DIR=$(pwd)
-        export PRELOAD_LIBS="$SO_DIR/libfakestat.so $SO_DIR/libfaketimeMT.so"
-        echo '#!/bin/bash' > cc-wrapper
-        echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> cc-wrapper
-        echo 'export FAKESTAT="'$FAKESTAT'"' >> cc-wrapper
-        echo 'export FAKETIME="'$FAKETIME'"' >> cc-wrapper
-        echo 'ccache clang "$@"' >> cc-wrapper
-        echo '#!/bin/bash' > ld-wrapper
-        echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> ld-wrapper
-        echo 'export FAKESTAT="'$FAKESTAT'"' >> ld-wrapper
-        echo 'export FAKETIME="'$FAKETIME'"' >> ld-wrapper
-        echo 'ld.lld --allow-multiple-definition "$@"' >> ld-wrapper
-        echo '#!/bin/bash' > test-wrapper.sh
-        echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> test-wrapper.sh
-        echo 'export FAKESTAT="'$FAKESTAT'"' >> test-wrapper.sh
-        echo 'export FAKETIME="'$FAKETIME'"' >> test-wrapper.sh
-        echo 'echo ">>> Wrapper 内部环境检查完毕."' >> test-wrapper.sh
-        echo 'exec "$@"' >> test-wrapper.sh
-        chmod +x test-wrapper.sh
-        ./test-wrapper.sh date
-        ./test-wrapper.sh stat ./Makefile
-        chmod +x cc-wrapper ld-wrapper
-        echo "--- 编译前环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
-        LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
+          # ====== 修复 walt_partial_pause_cpus / walt_partial_resume_cpus 重复符号 ======
+          # 关键：兼容 static/extern 前缀 + int/void 返回类型 + 行首空格/制表符，
+          # 全形式统一强制改为 static __always_inline，从根本上消除全局重复符号。
+          echo "修复 walt.h 中重复符号..."
+          WALT_FILE="include/linux/sched/walt.h"
+          if [ -f "$WALT_FILE" ]; then
+            sed -i -E 's/^([[:space:]]*)(static[[:space:]]+|extern[[:space:]]+)?(void|int)([[:space:]]+)(walt_partial_pause_cpus|walt_partial_resume_cpus)/\1static __always_inline \3\4\5/g' "$WALT_FILE"
+            echo "walt.h 修复完成，相关行如下："
+            grep -n "walt_partial_pause_cpus\|walt_partial_resume_cpus" "$WALT_FILE" || true
+          fi
+          # ==========================================================================
 
-        sudo rm -rf /usr/share/dotnet &
-        sudo rm -rf /usr/local/lib/android &
-        sudo rm -rf /opt/ghc &
-        sudo rm -rf /opt/hostedtoolcache/CodeQL &
-        # 配置已在上一步生成（gki+vendor片段+LLCC内置+HZ1000），这里直接编译 Image
-        test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
-        make O=out ARCH=arm64 LLVM=1 olddefconfig
-        set +e
-        make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error KCFLAGS+=-Wno-return-type Image > build_output.log 2>&1
-        make_exit_code=$?
-        set -e
-        echo "================= 编译错误关键字提取 ================="
-        grep -n -i "error:" build_output.log -A 5 -B 5 || true
-        echo "================= 编译日志最后 100 行 ================="
-        tail -n 100 build_output.log || true
-        if [ $make_exit_code -ne 0 ]; then
-          echo "!! 编译失败，请查看上传的日志文件"
-          exit 1
-        fi
+          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
+          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
+          chmod 777 ./*.so
+          export FAKESTAT="2025-05-25 12:00:00"
+          export FAKETIME="@2025-05-25 13:00:00"
+          echo "FAKESTAT=$FAKESTAT" >> $GITHUB_ENV
+          echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
+          SO_DIR=$(pwd)
+          export PRELOAD_LIBS="$SO_DIR/libfakestat.so $SO_DIR/libfaketimeMT.so"
+          echo '#!/bin/bash' > cc-wrapper
+          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> cc-wrapper
+          echo 'export FAKESTAT="'$FAKESTAT'"' >> cc-wrapper
+          echo 'export FAKETIME="'$FAKETIME'"' >> cc-wrapper
+          echo 'ccache clang "$@"' >> cc-wrapper
+          echo '#!/bin/bash' > ld-wrapper
+          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> ld-wrapper
+          echo 'export FAKESTAT="'$FAKESTAT'"' >> ld-wrapper
+          echo 'export FAKETIME="'$FAKETIME'"' >> ld-wrapper
+          echo 'ld.lld --allow-multiple-definition "$@"' >> ld-wrapper
+          echo '#!/bin/bash' > test-wrapper.sh
+          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> test-wrapper.sh
+          echo 'export FAKESTAT="'$FAKESTAT'"' >> test-wrapper.sh
+          echo 'export FAKETIME="'$FAKETIME'"' >> test-wrapper.sh
+          echo 'echo ">>> Wrapper 内部环境检查完毕."' >> test-wrapper.sh
+          echo 'exec "$@"' >> test-wrapper.sh
+          chmod +x test-wrapper.sh
+          ./test-wrapper.sh date
+          ./test-wrapper.sh stat ./Makefile
+          chmod +x cc-wrapper ld-wrapper
+          echo "--- 编译前环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
+          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
 
-        echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
-        LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
-        echo "内核编译完成！"
-        echo "==== LLCC 节点相关符号最终确认 ===="
-        for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON CONFIG_INTERCONNECT_QCOM_SUN CONFIG_HZ_1000; do
-          grep -q "^$s=y" out/.config && echo "$s = y OK" || echo "$s 缺失!"
-        done
-        ccache -s
-        echo "编译后空间:"
-        df -h
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          # 配置已在上一步生成（gki+vendor片段+LLCC内置+HZ1000），这里直接编译 Image
+          test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
+          make O=out ARCH=arm64 LLVM=1 olddefconfig
+          set +e
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error KCFLAGS+=-Wno-return-type Image > build_output.log 2>&1
+          make_exit_code=$?
+          set -e
+          echo "================= 编译错误关键字提取 ================="
+          grep -n -i "error:" build_output.log -A 5 -B 5 || true
+          echo "================= 编译日志最后 100 行 ================="
+          tail -n 100 build_output.log || true
+          if [ $make_exit_code -ne 0 ]; then
+            echo "!! 编译失败，请查看上传的日志文件"
+            exit 1
+          fi
 
-    - name: 上传编译日志（失败时）
-      if: failure()
-      uses: actions/upload-artifact@v7
-      with:
-        name: kernel-build-log
-        path: ${{ github.workspace }}/kernel_workspace/kernel_platform/msm-kernel/build_output.log
-        archive: false
+          echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
+          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
+          echo "内核编译完成！"
+          echo "==== LLCC 节点相关符号最终确认 ===="
+          for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON CONFIG_INTERCONNECT_QCOM_SUN CONFIG_HZ_1000; do
+            grep -q "^$s=y" out/.config && echo "$s = y OK" || echo "$s 缺失!"
+          done
+          ccache -s
+          echo "编译后空间:"
+          df -h
 
-    - name: 保存新的 ccache 缓存
-      if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v5
-      with:
-        path: ${{ env.CCACHE_DIR }}
-        key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
+      - name: 上传编译日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-build-log
+          path: ${{ github.workspace }}/kernel_workspace/kernel_platform/msm-kernel/build_output.log
+          archive: false
 
-    - name: 应用KPM并修补内核
-      if: inputs.kpm_enable
-      run: |
-        echo "正在应用KP-N并修补内核..."
-        cd kernel_workspace/kernel_platform/msm-kernel/out/arch/arm64/boot
-        wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux
-        wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux
-        chmod +x ./kptools-linux
-        ./kptools-linux -p -i ./Image -k ./kpimg-linux -o ./oImage
-        rm -f Image
-        mv oImage Image
+      - name: 保存新的 ccache 缓存
+        if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ env.CCACHE_REAL_KEY }}-${{ runner.os }}-${{ github.ref_name }}
 
-    - name: 克隆 AnyKernel3 并打包
-      id: create_zip
-      run: |
-        cd kernel_workspace
-        git clone https://github.com/cctv18/AnyKernel3 --depth=1
-        rm -rf ./AnyKernel3/.git
-        cd AnyKernel3
-        cp ../kernel_platform/msm-kernel/out/arch/arm64/boot/Image ./Image
-        if [[ ! -f ./Image ]]; then
-          echo "未找到内核镜像文件，构建可能出错"
-          exit 1
-        fi
-        if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
-          KSU_TYPENAME="SukiSU"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
-          KSU_TYPENAME="BakaSU"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
-          KSU_TYPENAME="KSUNext"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
-          KSU_TYPENAME="KSU"
-        else
-          KSU_TYPENAME="none"
-        fi
-        if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
-          wget https://raw.githubusercontent.com/$GITHUB_REPOSITORY/refs/heads/$GITHUB_REF_NAME/zram.zip
-        fi
-        if [[ ${{ github.event.inputs.kpm_enable }} == 'true' ]]; then
-          wget https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip
-        fi
-        if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
-          AK3_NAME=AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ github.event.inputs.kernel_suffix }}_LLCC.zip
-        else
-          AK3_NAME=AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ env.KERNEL_NAME }}.zip
-        fi
-        zip -r ../$AK3_NAME ./*
-        echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
-        if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
-          FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ github.event.inputs.kernel_suffix }}
-        else
-          FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}
-        fi
-        TIME_NOW="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
-        echo "Author: $GITHUB_ACTOR" > ./ak3.log
-        echo "Repo: $GITHUB_REPOSITORY" >> ./ak3.log
-        echo "Branch: $GITHUB_REF_NAME" >> ./ak3.log
-        echo "Run ID: $GITHUB_RUN_ID" >> ./ak3.log
-        echo "Commit: $GITHUB_SHA" >> ./ak3.log
-        echo "Time: $TIME_NOW" >> ./ak3.log
-        echo "Kernel Ver: $FULL_VERSION (full msm-kernel + LLCC built-in)" >> ./ak3.log
-        echo "KSU Branch: ${KSU_TYPENAME}" >> ./ak3.log
-        echo "KSU Ver: ${{ env.KSUVER }}" >> ./ak3.log
-        echo "susfs: ${{ github.event.inputs.susfs_enable }}" >> ./ak3.log
-        echo "KPM: ${{ github.event.inputs.kpm_enable }}" >> ./ak3.log
-        echo "LZ4: ${{ github.event.inputs.lz4_enable }}" >> ./ak3.log
-        echo "LZ4KD: ${{ github.event.inputs.lz4kd_enable }}" >> ./ak3.log
-        echo "IPset: ${{ github.event.inputs.better_net }}" >> ./ak3.log
-        echo "BBR&Brutal: ${{ github.event.inputs.bbr_enable }}" >> ./ak3.log
-        echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }}" >> ./ak3.log
-        echo "ADIOS: ${{ github.event.inputs.adios_enable }}" >> ./ak3.log
-        echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
-        echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
-        echo "LLCC bus_dcvs: built-in (=y)" >> ./ak3.log
-        zip -z ../$AK3_NAME < ./ak3.log
+      - name: 应用KPM并修补内核
+        if: inputs.kpm_enable
+        run: |
+          echo "正在应用KP-N并修补内核..."
+          cd kernel_workspace/kernel_platform/msm-kernel/out/arch/arm64/boot
+          wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-linux
+          wget https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kpimg-linux
+          chmod +x ./kptools-linux
+          ./kptools-linux -p -i ./Image -k ./kpimg-linux -o ./oImage
+          rm -f Image
+          mv oImage Image
 
-    - name: 上传 Ccache 调试日志
-      if: always() && inputs.ccache_debug
-      uses: actions/upload-artifact@v7
-      with:
-        name: ccache-debug-log
-        path: ${{ github.workspace }}/kernel_workspace/ccache.log
-        archive: true
+      - name: 克隆 AnyKernel3 并打包
+        id: create_zip
+        run: |
+          cd kernel_workspace
+          git clone https://github.com/cctv18/AnyKernel3 --depth=1
+          rm -rf ./AnyKernel3/.git
+          cd AnyKernel3
+          cp ../kernel_platform/msm-kernel/out/arch/arm64/boot/Image ./Image
+          if [[ ! -f ./Image ]]; then
+            echo "未找到内核镜像文件，构建可能出错"
+            exit 1
+          fi
+          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
+            KSU_TYPENAME="SukiSU"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
+            KSU_TYPENAME="BakaSU"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
+            KSU_TYPENAME="KSUNext"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+            KSU_TYPENAME="KSU"
+          else
+            KSU_TYPENAME="none"
+          fi
+          if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
+            wget https://raw.githubusercontent.com/$GITHUB_REPOSITORY/refs/heads/$GITHUB_REF_NAME/zram.zip
+          fi
+          if [[ ${{ github.event.inputs.kpm_enable }} == 'true' ]]; then
+            wget https://github.com/cctv18/KPatch-Next/releases/latest/download/kpn.zip
+          fi
+          if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
+            AK3_NAME=AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ github.event.inputs.kernel_suffix }}_LLCC.zip
+          else
+            AK3_NAME=AnyKernel3_${KSU_TYPENAME}_${{ env.KSUVER }}_${{ env.KERNEL_VERSION }}_${{ env.KERNEL_NAME }}.zip
+          fi
+          zip -r ../$AK3_NAME ./*
+          echo "ak3name=$AK3_NAME" >> $GITHUB_OUTPUT
+          if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
+            FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ github.event.inputs.kernel_suffix }}
+          else
+            FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}
+          fi
+          TIME_NOW="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+          echo "Author: $GITHUB_ACTOR" > ./ak3.log
+          echo "Repo: $GITHUB_REPOSITORY" >> ./ak3.log
+          echo "Branch: $GITHUB_REF_NAME" >> ./ak3.log
+          echo "Run ID: $GITHUB_RUN_ID" >> ./ak3.log
+          echo "Commit: $GITHUB_SHA" >> ./ak3.log
+          echo "Time: $TIME_NOW" >> ./ak3.log
+          echo "Kernel Ver: $FULL_VERSION (full msm-kernel + LLCC built-in)" >> ./ak3.log
+          echo "KSU Branch: ${KSU_TYPENAME}" >> ./ak3.log
+          echo "KSU Ver: ${{ env.KSUVER }}" >> ./ak3.log
+          echo "susfs: ${{ github.event.inputs.susfs_enable }}" >> ./ak3.log
+          echo "KPM: ${{ github.event.inputs.kpm_enable }}" >> ./ak3.log
+          echo "LZ4: ${{ github.event.inputs.lz4_enable }}" >> ./ak3.log
+          echo "LZ4KD: ${{ github.event.inputs.lz4kd_enable }}" >> ./ak3.log
+          echo "IPset: ${{ github.event.inputs.better_net }}" >> ./ak3.log
+          echo "BBR&Brutal: ${{ github.event.inputs.bbr_enable }}" >> ./ak3.log
+          echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }}" >> ./ak3.log
+          echo "ADIOS: ${{ github.event.inputs.adios_enable }}" >> ./ak3.log
+          echo "Re-Kernel: ${{ github.event.inputs.rekernel_enable }}" >> ./ak3.log
+          echo "BBG: ${{ github.event.inputs.baseband_guard }}" >> ./ak3.log
+          echo "LLCC bus_dcvs: built-in (=y)" >> ./ak3.log
+          zip -z ../$AK3_NAME < ./ak3.log
 
-    - name: 上传 ZIP 工件
-      uses: actions/upload-artifact@v7
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
-        archive: false
+      - name: 上传 Ccache 调试日志
+        if: always() && inputs.ccache_debug
+        uses: actions/upload-artifact@v7
+        with:
+          name: ccache-debug-log
+          path: ${{ github.workspace }}/kernel_workspace/ccache.log
+          archive: true
 
-    - name: 上传风驰冲突调试包
-      if: always() && inputs.fengchi_enable
-      uses: actions/upload-artifact@v7
-      with:
-        name: fengchi-debug
-        path: ${{ github.workspace }}/kernel_workspace/fengchi_debug.zip
-        archive: false
+      - name: 上传 ZIP 工件
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ github.workspace }}/kernel_workspace/AnyKernel*.zip
+          archive: false
 
-release:
-  needs: build
-  runs-on: ubuntu-latest
-  permissions:
-    contents: write
-    packages: write
-    actions: read
-  steps:
-    - name: 下载 ZIP 工件
-      uses: actions/download-artifact@v8
-      with:
-        name: ${{ needs.build.outputs.ak3name }}
-        path: ./release_zips
-        skip-decompress: true
+      - name: 上传风驰冲突调试包
+        if: always() && inputs.fengchi_enable
+        uses: actions/upload-artifact@v7
+        with:
+          name: fengchi-debug
+          path: ${{ github.workspace }}/kernel_workspace/fengchi_debug.zip
+          archive: false
 
-    - name: 设置环境变量
-      run: |
-        if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
-          FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ github.event.inputs.kernel_suffix }}
-          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
-        else
-          FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}
-          echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
-        fi
-        TIME="$(TZ='Asia/Shanghai' date +'%y%m%d%H%M%S')"
-        TIME_FORM="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
-        echo "TIME=$TIME" >> $GITHUB_ENV
-        echo "TIME_FORM=$TIME_FORM" >> $GITHUB_ENV
-        TAG_HEAD="OPPO-OPlus-Realme-build-LLCC"
-        echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
-        if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
-          KSU_TYPENAME="SukiSU Ultra"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
-          KSU_TYPENAME="BakaSU"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
-          KSU_TYPENAME="KernelSU Next"
-        elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
-          KSU_TYPENAME="KSU"
-        else
-          KSU_TYPENAME="无内置KSU"
-        fi
-        echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      actions: read
+    steps:
+      - name: 下载 ZIP 工件
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.ak3name }}
+          path: ./release_zips
+          skip-decompress: true
 
-    - name: 创建发布
-      id: create_release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        cat << 'EOF' > release_notes.md
-        ### 📱 欧加真 ${{ env.KSU_TYPENAME }} SM8750 通用内核(完整树·LLCC内置) | 构建信息
-        - 内核版本号: ${{ env.FULL_VERSION }}
-        - 编译时间: ${{ env.TIME_FORM }}
-        - 机型：欧加真骁龙8Elite通用 ${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} 内核（一加官方完整 msm-kernel 源码）
-        - 本版特性：QCOM DCVS/LLCC 驱动内置，开机即生成 /sys/devices/system/cpu/bus_dcvs/LLCC（available_frequencies/boost_freq 可写/cur_freq/hw_max/hw_min + memlat/bwmon）
-        - KSU分支：${{ env.KSU_TYPENAME }}
-        - susfs支持：${{ github.event.inputs.susfs_enable }}
-        - KPM支持 ：${{ github.event.inputs.kpm_enable }}
-        - LZ4支持：${{ github.event.inputs.lz4_enable }}
-        - LZ4KD支持：${{ github.event.inputs.lz4kd_enable }}
-        - 网络功能增强：${{ github.event.inputs.better_net }}
-        - BBR/Brutal 等拥塞控制算法支持：${{ github.event.inputs.bbr_enable }}
-        - Droidspaces 容器支持：${{ github.event.inputs.droidspaces_enable }}
-        - ADIOS IO调度器支持：${{ github.event.inputs.adios_enable }}
-        - Re-Kernel支持：${{ github.event.inputs.rekernel_enable }}
-        - 内核级基带保护支持：${{ github.event.inputs.baseband_guard }}
+      - name: 设置环境变量
+        run: |
+          if [[ -n "${{ github.event.inputs.kernel_suffix }}" ]]; then
+            FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ github.event.inputs.kernel_suffix }}
+            echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          else
+            FULL_VERSION=${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}-${{ env.KERNEL_NAME }}
+            echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          fi
+          TIME="$(TZ='Asia/Shanghai' date +'%y%m%d%H%M%S')"
+          TIME_FORM="$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+          echo "TIME=$TIME" >> $GITHUB_ENV
+          echo "TIME_FORM=$TIME_FORM" >> $GITHUB_ENV
+          TAG_HEAD="OPPO-OPlus-Realme-build-LLCC"
+          echo "TAG_HEAD=$TAG_HEAD" >> $GITHUB_ENV
+          if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" ]]; then
+            KSU_TYPENAME="SukiSU Ultra"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
+            KSU_TYPENAME="BakaSU"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksunext" ]]; then
+            KSU_TYPENAME="KernelSU Next"
+          elif [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+            KSU_TYPENAME="KSU"
+          else
+            KSU_TYPENAME="无内置KSU"
+          fi
+          echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
 
-        ### ✅ 刷入后验证 LLCC 节点（root）
-        ```
-        su -
-        ls /sys/devices/system/cpu/bus_dcvs/LLCC/
-        cat /sys/devices/system/cpu/bus_dcvs/LLCC/available_frequencies
-        echo 1066000 > /sys/devices/system/cpu/bus_dcvs/LLCC/boost_freq
-        cat /sys/devices/system/cpu/bus_dcvs/LLCC/boost_freq
-        ```
+      - name: 创建发布
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat << 'EOF' > release_notes.md
+          ### 📱 欧加真 ${{ env.KSU_TYPENAME }} SM8750 通用内核(完整树·LLCC内置) | 构建信息
+          - 内核版本号: ${{ env.FULL_VERSION }}
+          - 编译时间: ${{ env.TIME_FORM }}
+          - 机型：欧加真骁龙8Elite通用 ${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} 内核（一加官方完整 msm-kernel 源码）
+          - 本版特性：QCOM DCVS/LLCC 驱动内置，开机即生成 /sys/devices/system/cpu/bus_dcvs/LLCC（available_frequencies/boost_freq 可写/cur_freq/hw_max/hw_min + memlat/bwmon）
+          - KSU分支：${{ env.KSU_TYPENAME }}
+          - susfs支持：${{ github.event.inputs.susfs_enable }}
+          - KPM支持 ：${{ github.event.inputs.kpm_enable }}
+          - LZ4支持：${{ github.event.inputs.lz4_enable }}
+          - LZ4KD支持：${{ github.event.inputs.lz4kd_enable }}
+          - 网络功能增强：${{ github.event.inputs.better_net }}
+          - BBR/Brutal 等拥塞控制算法支持：${{ github.event.inputs.bbr_enable }}
+          - Droidspaces 容器支持：${{ github.event.inputs.droidspaces_enable }}
+          - ADIOS IO调度器支持：${{ github.event.inputs.adios_enable }}
+          - Re-Kernel支持：${{ github.event.inputs.rekernel_enable }}
+          - 内核级基带保护支持：${{ github.event.inputs.baseband_guard }}
 
-        ### ⚠️ 关于风驰(SCX/HMBIRD)
-        本版已含 HZ=1000；风驰为实验开关(fengchi_enable)，需适配完整树的 fengchi_fulltree.patch，默认关闭时为官方调度器。
+          ### ✅ 刷入后验证 LLCC 节点（root）
+          ```
+          su -
+          ls /sys/devices/system/cpu/bus_dcvs/LLCC/
+          cat /sys/devices/system/cpu/bus_dcvs/LLCC/available_frequencies
+          echo 1066000 > /sys/devices/system/cpu/bus_dcvs/LLCC/boost_freq
+          cat /sys/devices/system/cpu/bus_dcvs/LLCC/boost_freq
+          ```
 
-        #### ※※※刷写内核有风险，刷入前请务必备份 boot 等关键启动分区!※※※
-        EOF
+          ### ⚠️ 关于风驰(SCX/HMBIRD)
+          本版已含 HZ=1000；风驰为实验开关(fengchi_enable)，需适配完整树的 fengchi_fulltree.patch，默认关闭时为官方调度器。
 
-        gh release create "${{ env.TAG_HEAD }}-${{ env.TIME }}" \
-          --repo "${{ github.repository }}" \
-          --title "${{ env.TAG_HEAD }}-${{ env.FULL_VERSION }}" \
-          --notes-file release_notes.md \
-          release_zips/AnyKernel3_*.zip
+          #### ※※※刷写内核有风险，刷入前请务必备份 boot 等关键启动分区!※※※
+          EOF
+
+          gh release create "${{ env.TAG_HEAD }}-${{ env.TIME }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ env.TAG_HEAD }}-${{ env.FULL_VERSION }}" \
+            --notes-file release_notes.md \
+            release_zips/AnyKernel3_*.zip
