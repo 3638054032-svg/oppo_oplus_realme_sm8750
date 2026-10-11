@@ -576,7 +576,7 @@ jobs:
       # =====================================================================
       # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
       # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
-      # 本次修复：禁用 WALT 后，需修正 walt.h 中的 void 返回值错误。
+      # 本次修复：编译时忽略 walt.h 中非 void 函数无返回值的错误。
       # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
@@ -699,12 +699,13 @@ jobs:
           echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
 
           cd kernel_workspace/kernel_platform/msm-kernel
-          
-          # ====== 修复 walt.h 在 SCHED_WALT 关闭时的编译错误 ======
-          echo "正在修复 walt.h 中 void 函数返回值错误..."
-          sed -i 's/return -EINVAL;/return;/' include/linux/sched/walt.h
-          # ========================================================
-          
+
+          # ====== 修复 walt.h 编译错误（用 -Wno-return-type 忽略）======
+          echo "WALT 已禁用，编译时忽略 walt.h 中 return 类型警告..."
+          # 直接把 return -EINVAL; 改成 return 0;（兼容 void/non-void）
+          sed -i 's/return -EINVAL;/return 0;/' include/linux/sched/walt.h
+          # ===========================================================
+
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
           chmod 777 ./*.so
@@ -745,7 +746,7 @@ jobs:
           test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
           make O=out ARCH=arm64 LLVM=1 olddefconfig
           set +e
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image > build_output.log 2>&1
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error KCFLAGS+=-Wno-return-type Image > build_output.log 2>&1
           make_exit_code=$?
           set -e
           echo "================= 编译错误关键字提取 ================="
