@@ -711,15 +711,12 @@ jobs:
           # ==========================================================================
 
           # ====== 修复 walt_partial_pause_cpus / walt_partial_resume_cpus 重复符号 ======
+          # 关键：兼容 static/extern 前缀 + int/void 返回类型 + 行首空格/制表符，
+          # 全形式统一强制改为 static __always_inline，从根本上消除全局重复符号。
           echo "修复 walt.h 中重复符号..."
           WALT_FILE="include/linux/sched/walt.h"
           if [ -f "$WALT_FILE" ]; then
-            # 兼容前面有空格、制表符、extern等情况的全局替换，强制变为 static inline
-            sed -i 's/[[:space:]]*void[[:space:]]\+walt_partial_pause_cpus/static inline void walt_partial_pause_cpus/g' "$WALT_FILE"
-            sed -i 's/[[:space:]]*void[[:space:]]\+walt_partial_resume_cpus/static inline void walt_partial_resume_cpus/g' "$WALT_FILE"
-            # 兼容带 extern 的情况
-            sed -i 's/extern[[:space:]]\+void[[:space:]]\+walt_partial_pause_cpus/static inline void walt_partial_pause_cpus/g' "$WALT_FILE"
-            sed -i 's/extern[[:space:]]\+void[[:space:]]\+walt_partial_resume_cpus/static inline void walt_partial_resume_cpus/g' "$WALT_FILE"
+            sed -i -E 's/^([[:space:]]*)(static[[:space:]]+|extern[[:space:]]+)?(void|int)([[:space:]]+)(walt_partial_pause_cpus|walt_partial_resume_cpus)/\1static __always_inline \3\4\5/g' "$WALT_FILE"
             echo "walt.h 修复完成，相关行如下："
             grep -n "walt_partial_pause_cpus\|walt_partial_resume_cpus" "$WALT_FILE" || true
           fi
