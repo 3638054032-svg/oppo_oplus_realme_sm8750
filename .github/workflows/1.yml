@@ -622,11 +622,13 @@ jobs:
           $CFG --enable QCOM_CRM_DEBUG
           $CFG --enable QCOM_CPU_PHYMAPPING
           $CFG --enable QCOM_CPUSS_PHYSID
+          
           $CFG --disable QCOM_MINIDUMP
           $CFG --disable MINIDUMP
           $CFG --enable QCOM_DUMP
           $CFG --disable SCHED_WALT
           $CFG --disable QTI_QCOM_LOGBUF
+          $CFG --disable DEBUG_INFO_BTF
           # =======================================================
           make O=out ARCH=arm64 olddefconfig
           echo "==== 4) 硬性校验：只保留 LLCC 核心符号，其余交给编译自动判断 ===="
@@ -636,6 +638,11 @@ jobs:
           done
           echo "LLCC 核心符号已全部内置："
           grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=' out/.config
+          
+          echo "==== 5) 最终校验关键配置 ===="
+          for s in CONFIG_QCOM_CPUSS_PHYSID CONFIG_DEBUG_INFO_BTF; do
+          grep -q "^$s=y" out/.config && echo "$s = y OK" || echo "$s 未启用!"
+          done
 
       # 风驰(SCX/HMBIRD)：默认关闭！
       # 你仓库里的 other_patch/fengchi.patch 是给 cctv18 common 树用的，实测在官方完整树
