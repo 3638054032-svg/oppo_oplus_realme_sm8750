@@ -410,6 +410,8 @@ jobs:
           cd $K
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
           patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
+          run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace
 
           # 开启SCX sched-ext框架全套配置
           echo "CONFIG_SCHED_CLASS_EXT=y" >> ./common/arch/arm64/configs/gki_defconfig
