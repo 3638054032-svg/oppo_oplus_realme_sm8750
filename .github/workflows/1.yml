@@ -712,6 +712,7 @@ jobs:
           echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
 
           cd kernel_workspace/kernel_platform/msm-kernel
+          sed -i '1i int cpu_logical_to_phys(int cpu) { return cpu; }' drivers/perf/qcom_llcc_pmu.c
 
           # ====== 修复 walt.h 在 SCHED_WALT 关闭时的编译错误（用 -Wno-return-type 忽略）======
           echo "WALT 已禁用，编译时忽略 walt.h 中 return 类型警告..."
