@@ -1,4 +1,4 @@
-name: 6.6.119 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
+name: 6.6.118 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
 
 env:
   TZ: Asia/Shanghai
@@ -576,7 +576,7 @@ jobs:
       # =====================================================================
       # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
       # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
-      # 这是 /sys/devices/system/cpu/bus_dcvs/LLCC 节点出现的核心。
+      # 这次补全了所有缺失的底层依赖（socinfo/llcc_pmu/icc_debug/ipc_log/crm/walt）。
       # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
@@ -609,15 +609,26 @@ jobs:
           # 双保险：强制节拍 1000（gki 默认 250），不启用 NO_HZ_FULL
           $CFG --enable HZ_1000 --disable HZ_250 --disable HZ_300 --disable HZ_100
           $CFG --enable NO_HZ_IDLE --disable NO_HZ_FULL
+          # ====== 新增：补全之前缺失的底层依赖符号 ======
+          $CFG --enable SOCINFO
+          $CFG --enable QCOM_LLCC_PMU
+          $CFG --enable INTERCONNECT_QCOM_DEBUG
+          $CFG --enable IPC_LOGGING
+          $CFG --enable QCOM_CRM
+          $CFG --enable QCOM_CRM_DEBUG
+          $CFG --enable SCHED_WALT
+          $CFG --enable QTI_QCOM_LOGBUF
+          # =============================================
           make O=out ARCH=arm64 olddefconfig
           echo "==== 4) 硬性校验：关键符号必须 =y，否则直接失败 ===="
           for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON CONFIG_QCOM_PMU_LIB \
                    CONFIG_QTI_SCMI_VENDOR_PROTOCOL CONFIG_QTI_SCMI_PMU_PROTOCOL CONFIG_QCOM_CPUCP \
-                   CONFIG_INTERCONNECT_QCOM_SUN CONFIG_QCOM_RPMH CONFIG_HZ_1000; do
+                   CONFIG_INTERCONNECT_QCOM_SUN CONFIG_QCOM_RPMH CONFIG_HZ_1000 \
+                   CONFIG_SOCINFO CONFIG_QCOM_LLCC_PMU CONFIG_QCOM_CRM CONFIG_SCHED_WALT; do
             grep -q "^$s=y" out/.config || { echo "!! 缺少内置符号 $s，终止构建"; exit 1; }
           done
           echo "全部关键符号已内置："
-          grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=' out/.config
+          grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=|CONFIG_SOCINFO=|CONFIG_QCOM_LLCC_PMU=|CONFIG_QCOM_CRM=|CONFIG_SCHED_WALT=' out/.config
 
       # 风驰(SCX/HMBIRD)：默认关闭！
       # 你仓库里的 other_patch/fengchi.patch 是给 cctv18 common 树用的，实测在官方完整树
@@ -722,27 +733,22 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          
           # 配置已在上一步生成（gki+vendor片段+LLCC内置+HZ1000），这里直接编译 Image
           test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
           make O=out ARCH=arm64 LLVM=1 olddefconfig
-          
-          echo "================= 开始编译内核 ================="
           set +e
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image > build_output.log 2>&1
           make_exit_code=$?
           set -e
-          
           echo "================= 编译错误关键字提取 ================="
           grep -n -i "error:" build_output.log -A 5 -B 5 || true
           echo "================= 编译日志最后 100 行 ================="
           tail -n 100 build_output.log || true
-          
           if [ $make_exit_code -ne 0 ]; then
             echo "!! 编译失败，请查看上传的日志文件"
             exit 1
           fi
-          
+
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
           LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
           echo "内核编译完成！"
