@@ -410,15 +410,7 @@ jobs:
           cd $K
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
           patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
-          run: |
-          
-          # 开启SCX sched-ext框架全套配置
-           scripts/config --enable CONFIG_SCHED_CLASS_EXT
-           scripts/config --enable CONFIG_BPF
-           scripts/config --enable CONFIG_BPF_SYSCALL
-           scripts/config --enable CONFIG_BPF_JIT
-           scripts/config --enable CONFIG_DEBUG_INFO_BTF
-           
+
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
         run: |
@@ -632,14 +624,6 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_HMBIRD_SCHED --enable CONFIG_OPLUS_SCHED --enable CONFIG_OPLUS_GAME_OPT
           make O=out ARCH=arm64 LLVM=1 olddefconfig
           echo "风驰(适配完整树)已打入"
-
-          - name: 源码树清理 mrproper
-          run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/kernel_platform/msm-kernel
-          make ARCH=arm64 mrproper
-
-
-             
 
       - name: 构建内核
         run: |
