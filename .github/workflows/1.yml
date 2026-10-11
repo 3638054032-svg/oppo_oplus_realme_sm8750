@@ -1,4 +1,4 @@
-name: 6.6.119 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
+name: 6.6.118 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
 
 env:
   TZ: Asia/Shanghai
@@ -627,13 +627,17 @@ jobs:
       - name: 风驰补丁冲突调试（自动提取冲突文件）
         if: inputs.fengchi_enable
         run: |
-          cd kernel_workspace/kernel_platform/msm-kernel
+          mkdir -p $GITHUB_WORKSPACE/other_patch
+          echo ">>> 正在从仓库下载 fengchi.patch..."
+          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/fengchi.patch -O $GITHUB_WORKSPACE/other_patch/fengchi.patch || { echo "下载失败"; exit 1; }
+          
           P="$GITHUB_WORKSPACE/other_patch/fengchi.patch"
           if [ ! -f "$P" ]; then
-            echo "!! 未找到 other_patch/fengchi.patch，请确认文件存在"
+            echo "!! 下载后未找到补丁文件，终止"
             exit 1
           fi
           
+          cd kernel_workspace/kernel_platform/msm-kernel
           echo ">>> 正在强制应用风驰补丁，冲突处会生成 .rej 文件..."
           # 强制应用，忽略报错，把打不上的地方存成 .rej 文件
           git apply --reject "$P" || true
@@ -718,11 +722,27 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          
           # 配置已在上一步生成（gki+vendor片段+LLCC内置+HZ1000），这里直接编译 Image
           test -f out/.config || { echo "out/.config 缺失，请检查上一步"; exit 1; }
           make O=out ARCH=arm64 LLVM=1 olddefconfig
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
-
+          
+          echo "================= 开始编译内核 ================="
+          set +e
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image > build_output.log 2>&1
+          make_exit_code=$?
+          set -e
+          
+          echo "================= 编译错误关键字提取 ================="
+          grep -n -i "error:" build_output.log -A 5 -B 5 || true
+          echo "================= 编译日志最后 100 行 ================="
+          tail -n 100 build_output.log || true
+          
+          if [ $make_exit_code -ne 0 ]; then
+            echo "!! 编译失败，请查看上传的日志文件"
+            exit 1
+          fi
+          
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
           LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
           echo "内核编译完成！"
@@ -733,6 +753,14 @@ jobs:
           ccache -s
           echo "编译后空间:"
           df -h
+
+      - name: 上传编译日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-build-log
+          path: ${{ github.workspace }}/kernel_workspace/kernel_platform/msm-kernel/build_output.log
+          archive: false
 
       - name: 保存新的 ccache 缓存
         if: inputs.ccache_update || steps.ccache-restore.outputs.cache-hit != 'true'
