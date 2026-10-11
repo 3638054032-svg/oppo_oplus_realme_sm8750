@@ -576,7 +576,8 @@ jobs:
       # =====================================================================
       # 关键改动②：生成配置——gki_defconfig + 官方 sun vendor 片段，
       # 再把 LLCC DCVS 整条依赖链【内置 =y】，硬性校验符号后才允许编译。
-      # 本次修复：编译时忽略 walt.h 中非 void 函数无返回值的错误。
+      # 本次修复：将 QCOM_CPU_PHYMAP 改为正确的 QCOM_CPU_PHYMAPPING，
+      # 并新增 QCOM_MINIDUMP 以解决 msm_minidump_* 符号缺失问题。
       # =====================================================================
       - name: 合并 sun vendor 片段并内置 LLCC DCVS（生成 bus_dcvs 节点）
         run: |
@@ -609,7 +610,7 @@ jobs:
           # 双保险：强制节拍 1000（gki 默认 250），不启用 NO_HZ_FULL
           $CFG --enable HZ_1000 --disable HZ_250 --disable HZ_300 --disable HZ_100
           $CFG --enable NO_HZ_IDLE --disable NO_HZ_FULL
-          # ====== 补全底层依赖，并关闭 WALT 避免 OPLUS hook 符号缺失 ======
+          # ====== 补全底层依赖（含 SOCINFO 前置依赖 QCOM_SMEM，以及 MINIDUMP 依赖）======
           $CFG --enable QCOM_SMEM
           $CFG --enable QCOM_SOCINFO
           $CFG --enable QCOM_LLCC
@@ -619,10 +620,13 @@ jobs:
           $CFG --enable IPC_LOGGING
           $CFG --enable QCOM_CRM
           $CFG --enable QCOM_CRM_DEBUG
-          $CFG --enable QCOM_CPU_PHYMAP
+          $CFG --enable QCOM_CPU_PHYMAPPING
+          $CFG --enable QCOM_MINIDUMP
+          $CFG --enable MINIDUMP
+          $CFG --enable QCOM_DUMP
           $CFG --disable SCHED_WALT
           $CFG --disable QTI_QCOM_LOGBUF
-          # ==================================================================
+          # =======================================================
           make O=out ARCH=arm64 olddefconfig
           echo "==== 4) 硬性校验：只保留 LLCC 核心符号，其余交给编译自动判断 ===="
           for s in CONFIG_QCOM_DCVS CONFIG_QCOM_MEMLAT CONFIG_QCOM_BWMON \
@@ -700,11 +704,11 @@ jobs:
 
           cd kernel_workspace/kernel_platform/msm-kernel
 
-          # ====== 修复 walt.h 编译错误（用 -Wno-return-type 忽略）======
+          # ====== 修复 walt.h 在 SCHED_WALT 关闭时的编译错误（用 -Wno-return-type 忽略）======
           echo "WALT 已禁用，编译时忽略 walt.h 中 return 类型警告..."
           # 直接把 return -EINVAL; 改成 return 0;（兼容 void/non-void）
           sed -i 's/return -EINVAL;/return 0;/' include/linux/sched/walt.h
-          # ===========================================================
+          # ==========================================================================
 
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
