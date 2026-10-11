@@ -710,6 +710,23 @@ jobs:
           sed -i 's/return -EINVAL;/return 0;/' include/linux/sched/walt.h
           # ==========================================================================
 
+          # ====== 修复 walt_partial_pause_cpus / walt_partial_resume_cpus 重复符号 ======
+          echo "修复 walt.h 中重复符号..."
+          WALT_FILE="include/linux/sched/walt.h"
+          if [ -f "$WALT_FILE" ]; then
+            # 确保这两个函数是 static inline，避免生成全局符号
+            sed -i 's/^void walt_partial_pause_cpus/static inline void walt_partial_pause_cpus/' "$WALT_FILE"
+            sed -i 's/^void walt_partial_resume_cpus/static inline void walt_partial_resume_cpus/' "$WALT_FILE"
+            sed -i 's/^extern void walt_partial_pause_cpus/static inline void walt_partial_pause_cpus/' "$WALT_FILE"
+            sed -i 's/^extern void walt_partial_resume_cpus/static inline void walt_partial_resume_cpus/' "$WALT_FILE"
+            # 若还有非 static inline 的定义，尝试更宽松的替换
+            sed -i 's/^\(void\s\+walt_partial_pause_cpus\)/static inline \1/' "$WALT_FILE"
+            sed -i 's/^\(void\s\+walt_partial_resume_cpus\)/static inline \1/' "$WALT_FILE"
+            echo "walt.h 修复完成，相关行如下："
+            grep -n "walt_partial_pause_cpus\|walt_partial_resume_cpus" "$WALT_FILE" || true
+          fi
+          # ==========================================================================
+
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfakestat.so
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/lib/libfaketimeMT.so
           chmod 777 ./*.so
