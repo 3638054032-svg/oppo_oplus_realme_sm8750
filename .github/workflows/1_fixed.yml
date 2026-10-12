@@ -1,4 +1,4 @@
-name: 6.6.118 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
+name: 6.6.1181 欧加真OKI内核快速构建（完整树·LLCC bus_dcvs 内置版）
 
 env:
   TZ: Asia/Shanghai
