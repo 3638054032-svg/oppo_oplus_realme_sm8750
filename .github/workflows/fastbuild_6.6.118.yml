@@ -551,8 +551,12 @@ jobs:
           sed -i '/CONFIG_HZ_250/d' $D
           sed -i '/CONFIG_HZ_1000/d' $D
           sed -i '/CONFIG_HZ=/d' $D
+          
+          # 新增 LLCC BW MON sysfs 节点开启
+          echo "CONFIG_QCOM_LLCC_BWMON_SYSFS=y" >> $D
           echo "CONFIG_HZ_1000=y" >> $D
           echo "CONFIG_HZ=1000" >> $D
+          
           echo "==== HZ配置检查（应只显示1000）===="
           grep -nE "CONFIG_HZ" $D
           if grep -q "CONFIG_NO_HZ_FULL=y" $D; then echo "ERROR: 不应启用NO_HZ_FULL"; exit 1; fi
