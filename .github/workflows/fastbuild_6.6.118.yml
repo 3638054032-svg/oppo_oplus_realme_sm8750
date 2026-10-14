@@ -410,7 +410,7 @@ jobs:
           cd $K
           wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/cve-2026-43499-rtmutex-6.6.patch
           patch -p1 -F 3 < cve-2026-43499-rtmutex-6.6.patch
-
+          
           # 开启SCX sched-ext框架全套配置
           echo "CONFIG_SCHED_CLASS_EXT=y" >> ./common/arch/arm64/configs/sm8750_defconfig
           echo "CONFIG_BPF=y" >> ./common/arch/arm64/configs/sm8750_defconfig
@@ -418,7 +418,6 @@ jobs:
           echo "CONFIG_BPF_JIT=y" >> ./common/arch/arm64/configs/sm8750_defconfig
           echo "CONFIG_DEBUG_INFO_BTF=y" >> ./common/arch/arm64/configs/sm8750_defconfig
           echo "CONFIG_QCOM_MEMLAT=y" >> ./common/arch/arm64/configs/sm8750_defconfig
-
 
       - name: 启用网络功能增强优化配置
         if: inputs.better_net
