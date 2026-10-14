@@ -614,7 +614,8 @@ jobs:
         run: |
           cd kernel_workspace/kernel_platform/msm-kernel
           echo "应用 llcc-bwmon.patch ..."
-          patch -p1 < ../../llcc-bwmon.patch || true
+          # patch -p1 < ../../llcc-bwmon.patch || true
+
 
       # 风驰(SCX/HMBIRD)：默认关闭！
       # 你仓库里的 other_patch/fengchi.patch 是给 cctv18 common 树用的，实测在官方完整树
