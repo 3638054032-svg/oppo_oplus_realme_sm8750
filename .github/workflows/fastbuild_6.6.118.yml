@@ -610,8 +610,8 @@ jobs:
           echo "全部关键符号已内置："
           grep -E 'CONFIG_QCOM_DCVS=|CONFIG_QCOM_MEMLAT=|CONFIG_QCOM_BWMON=|CONFIG_QCOM_PMU_LIB=|CONFIG_INTERCONNECT_QCOM_SUN=|CONFIG_HZ=' out/.config
 
-          - name: 应用 LLCC BW MON 补丁
-          run: |
+      - name: 应用 LLCC BW MON 补丁
+        run: |
           cd kernel_workspace/kernel_platform/msm-kernel
           echo "应用 llcc-bwmon.patch ..."
           patch -p1 < ../../llcc-bwmon.patch || true
